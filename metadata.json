@@ -1,0 +1,6 @@
+{
+  "name": "Pemantau Imunisasi 0–5 Tahun",
+  "description": "Jadwal imunisasi bayi–balita (0–5 tahun) dan estimasi biaya untuk perencanaan orang tua dan asuransi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
