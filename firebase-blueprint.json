@@ -47,6 +47,37 @@
         }
       },
       "required": ["ownerId", "schemaVersion", "profiles"]
+    },
+    "FinanceTransaction": {
+      "title": "FinanceTransaction",
+      "description": "Dokumen transaksi pemasukan atau pengeluaran keuangan keluarga",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "categoryId": { "type": "string", "maxLength": 64 },
+        "date": { "type": "string" },
+        "note": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "type", "amount", "categoryId", "date", "createdAt", "updatedAt"]
+    },
+    "FinanceConfig": {
+      "title": "FinanceConfig",
+      "description": "Konfigurasi kategori kustom, anggaran bulanan, dan opsi integrasi keuangan",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "schemaVersion": { "type": "number" },
+        "customCategories": { "type": "array" },
+        "budgets": { "type": "object" },
+        "includeVaccineCosts": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["ownerId", "schemaVersion", "customCategories", "budgets", "includeVaccineCosts"]
     }
   },
   "firestore": {
@@ -57,6 +88,14 @@
     "/users/{userId}/appData/{docId}": {
       "schema": "UserAppState",
       "description": "Dokumen penyimpanan cloud untuk profil anak dan jadwal vaksinasi"
+    },
+    "/users/{userId}/financeTransactions/{txId}": {
+      "schema": "FinanceTransaction",
+      "description": "Dokumen transaksi pemasukan dan pengeluaran keuangan"
+    },
+    "/users/{userId}/financeConfig/{docId}": {
+      "schema": "FinanceConfig",
+      "description": "Dokumen konfigurasi keuangan keluarga"
     }
   }
 }

@@ -1,0 +1,202 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`C2: calc.ts Characterization Tests > calculateCostSummary snapshots for 3 PaymentModes x 4 scenario combinations 1`] = `
+[
+  {
+    "mode": "HYBRID",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 12050000,
+      "dibebaskanMin": 6600000,
+      "semuaSwastaMax": 19650000,
+      "semuaSwastaMin": 11100000,
+      "tanggungSendiriMax": 7600000,
+      "tanggungSendiriMin": 4500000,
+    },
+  },
+  {
+    "mode": "HYBRID",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 10250000,
+      "dibebaskanMin": 5600000,
+      "semuaSwastaMax": 23050000,
+      "semuaSwastaMin": 13700000,
+      "tanggungSendiriMax": 12800000,
+      "tanggungSendiriMin": 8100000,
+    },
+  },
+  {
+    "mode": "HYBRID",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 12050000,
+      "dibebaskanMin": 6600000,
+      "semuaSwastaMax": 21950000,
+      "semuaSwastaMin": 12750000,
+      "tanggungSendiriMax": 9900000,
+      "tanggungSendiriMin": 6150000,
+    },
+  },
+  {
+    "mode": "HYBRID",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 10250000,
+      "dibebaskanMin": 5600000,
+      "semuaSwastaMax": 25350000,
+      "semuaSwastaMin": 15350000,
+      "tanggungSendiriMax": 15100000,
+      "tanggungSendiriMin": 9750000,
+    },
+  },
+  {
+    "mode": "FULL_PRIVATE",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 0,
+      "dibebaskanMin": 0,
+      "semuaSwastaMax": 19650000,
+      "semuaSwastaMin": 11100000,
+      "tanggungSendiriMax": 19650000,
+      "tanggungSendiriMin": 11100000,
+    },
+  },
+  {
+    "mode": "FULL_PRIVATE",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 0,
+      "dibebaskanMin": 0,
+      "semuaSwastaMax": 23050000,
+      "semuaSwastaMin": 13700000,
+      "tanggungSendiriMax": 23050000,
+      "tanggungSendiriMin": 13700000,
+    },
+  },
+  {
+    "mode": "FULL_PRIVATE",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 0,
+      "dibebaskanMin": 0,
+      "semuaSwastaMax": 21950000,
+      "semuaSwastaMin": 12750000,
+      "tanggungSendiriMax": 21950000,
+      "tanggungSendiriMin": 12750000,
+    },
+  },
+  {
+    "mode": "FULL_PRIVATE",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 0,
+      "dibebaskanMin": 0,
+      "semuaSwastaMax": 25350000,
+      "semuaSwastaMin": 15350000,
+      "tanggungSendiriMax": 25350000,
+      "tanggungSendiriMin": 15350000,
+    },
+  },
+  {
+    "mode": "FULL_BPJS",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 12050000,
+      "dibebaskanMin": 6600000,
+      "semuaSwastaMax": 19650000,
+      "semuaSwastaMin": 11100000,
+      "tanggungSendiriMax": 7600000,
+      "tanggungSendiriMin": 4500000,
+    },
+  },
+  {
+    "mode": "FULL_BPJS",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": false,
+    },
+    "total": {
+      "dibebaskanMax": 10250000,
+      "dibebaskanMin": 5600000,
+      "semuaSwastaMax": 23050000,
+      "semuaSwastaMin": 13700000,
+      "tanggungSendiriMax": 12800000,
+      "tanggungSendiriMin": 8100000,
+    },
+  },
+  {
+    "mode": "FULL_BPJS",
+    "scen": {
+      "heksavalenSwasta": false,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 12050000,
+      "dibebaskanMin": 6600000,
+      "semuaSwastaMax": 21950000,
+      "semuaSwastaMin": 12750000,
+      "tanggungSendiriMax": 9900000,
+      "tanggungSendiriMin": 6150000,
+    },
+  },
+  {
+    "mode": "FULL_BPJS",
+    "scen": {
+      "heksavalenSwasta": true,
+      "sertakanKondisional": true,
+    },
+    "total": {
+      "dibebaskanMax": 10250000,
+      "dibebaskanMin": 5600000,
+      "semuaSwastaMax": 25350000,
+      "semuaSwastaMin": 15350000,
+      "tanggungSendiriMax": 15100000,
+      "tanggungSendiriMin": 9750000,
+    },
+  },
+]
+`;
+
+exports[`C2: calc.ts Characterization Tests > calculateRealization scenarios 1`] = `
+{
+  "perTahunRealization": {
+    "1": 350000,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0,
+  },
+  "totalBiayaAktual": 350000,
+  "totalKlaimDiajukan": 0,
+  "totalKlaimDisetujui": 150000,
+  "totalKlaimDitolak": 0,
+}
+`;
