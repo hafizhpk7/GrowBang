@@ -1,50 +1,194 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --color-navy: #1F4E78;
-    --color-navy-dark: #153654;
-    --color-teal: #0D9488;
+:root {
+  --bg: #FAF7F2;
+  --bg-sidebar: #F5EFE6;
+  --surface: #FFFFFF;
+  --surface-sunken: #F4EFEB;
+  --border: #EFE8DE;
+  --border-strong: #DDD4C7;
+  --text: #26201B;
+  --text-2: #61574E;
+  --text-3: #8C8276;
+
+  /* Richer, warmer sage primary & soft coral accent */
+  --primary: #34634E;
+  --primary-hover: #29503E;
+  --primary-fg: #FFFFFF;
+  --primary-tint: #E8F1EC;
+  --primary-text: #254F3D;
+
+  --accent: #D25C34;
+  --accent-hover: #BC4F29;
+  --accent-text: #A7411E;
+  --accent-tint: #FBECE5;
+
+  --info: #3E6382;
+  --info-tint: #E7EFF6;
+  --warning: #C98F28;
+  --warning-text: #8F5E0F;
+  --warning-tint: #FAF1DC;
+  --danger: #BA3826;
+  --danger-tint: #FBE7E3;
+  --track: #EFE8DC;
+  --focus: #34634E;
+
+  /* Chart & Semantics */
+  --chart-program: #87BBA2;
+  --chart-insurance: #5A83A6;
+  --chart-parent: #26201B;
+
+  /* Soft diffused drop shadow for cards to pop from cream bg */
+  --shadow-card: 0 2px 10px -2px rgba(42, 36, 32, 0.05), 0 1px 3px 0 rgba(42, 36, 32, 0.03);
+  --shadow-card-hover: 0 4px 14px -3px rgba(42, 36, 32, 0.08), 0 2px 5px 0 rgba(42, 36, 32, 0.04);
+  --shadow-popover: 0 10px 25px -4px rgba(42, 36, 32, 0.12), 0 4px 8px -2px rgba(42, 36, 32, 0.06);
+  --scrim: rgba(38, 32, 27, 0.4);
+}
+
+[data-theme="dark"] {
+  --bg: #1B1815;
+  --bg-sidebar: #221E1A;
+  --surface: #27231F;
+  --surface-sunken: #302A24;
+  --border: #3B342C;
+  --border-strong: #4F463B;
+  --text: #F5EFE7;
+  --text-2: #BAAF9F;
+  --text-3: #8C8274;
+
+  --primary: #76B495;
+  --primary-hover: #8AC3A6;
+  --primary-fg: #122119;
+  --primary-tint: #23342B;
+  --primary-text: #9FD3B9;
+
+  --accent: #E5875E;
+  --accent-hover: #F09A73;
+  --accent-text: #F3A988;
+  --accent-tint: #3B281E;
+
+  --info: #8EB2D5;
+  --info-tint: #25313D;
+  --warning: #E0A73E;
+  --warning-text: #ECC36D;
+  --warning-tint: #3A2F1C;
+  --danger: #E87261;
+  --danger-tint: #3A221E;
+  --track: #352F28;
+  --focus: #76B495;
+
+  /* Chart & Semantics */
+  --chart-program: #467962;
+  --chart-insurance: #8EB2D5;
+  --chart-parent: #F5EFE7;
+
+  --shadow-card: 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 4px 14px -3px rgba(0, 0, 0, 0.45);
+  --shadow-popover: 0 12px 28px -4px rgba(0, 0, 0, 0.55);
+  --scrim: rgba(0, 0, 0, 0.65);
+}
+
+@theme {
+  --font-serif: "Fraunces", Georgia, serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-text: var(--primary-text);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
+
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-tint: var(--warning-tint);
+
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+
+  --color-track: var(--track);
+  --color-focus: var(--focus);
+}
+
+/* Global Typography & Rules */
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+h1, h2, h3, .font-serif-title {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+  font-weight: 500;
+}
+
+/* Subtle soft elevation card utility */
+.card-elevated {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  border-radius: 12px;
+}
+
+.card-elevated-hover {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  border-radius: 12px;
+  transition: box-shadow 150ms ease-out, border-color 150ms ease-out;
+}
+.card-elevated-hover:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-strong);
+}
+
+/* Tabular figures for numbers, money, percentages */
+.tabular-nums, input[type="number"], .font-tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Accessible focus ring on interactive elements */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus) !important;
+  outline-offset: 2px !important;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Custom Print Styles */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  body {
-    background: white !important;
-    color: black !important;
-    font-size: 11pt;
-  }
-
-  .print-page {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  table {
-    page-break-inside: auto;
-  }
-
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl {
-    box-shadow: none !important;
-  }
-}
-
-/* Custom scrollbars */
+/* Custom scrollbars matching theme tokens */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -55,10 +199,21 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border-strong);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--text-3);
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
 }

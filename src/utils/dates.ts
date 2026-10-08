@@ -19,9 +19,11 @@ export function formatFullIndonesianDate(date: Date | string | undefined | null)
 
 export function calculateDueDate(birthDateStr: string, bln: number): Date {
   try {
-    const birthDate = parseISO(birthDateStr);
+    if (!birthDateStr) return new Date();
+    const birthDate = typeof birthDateStr === "string" ? parseISO(birthDateStr) : new Date(birthDateStr);
     if (isNaN(birthDate.getTime())) return new Date();
-    return addMonths(birthDate, bln);
+    const months = typeof bln === "number" && !isNaN(bln) ? bln : 0;
+    return addMonths(birthDate, months);
   } catch {
     return new Date();
   }
@@ -29,7 +31,10 @@ export function calculateDueDate(birthDateStr: string, bln: number): Date {
 
 export function getChildAge(birthDateStr: string, targetDate: Date = new Date()): { years: number; months: number; days: number; text: string } {
   try {
-    const birthDate = parseISO(birthDateStr);
+    if (!birthDateStr) {
+      return { years: 0, months: 0, days: 0, text: "-" };
+    }
+    const birthDate = typeof birthDateStr === "string" ? parseISO(birthDateStr) : new Date(birthDateStr);
     if (isNaN(birthDate.getTime())) {
       return { years: 0, months: 0, days: 0, text: "Tanggal lahir tidak valid" };
     }
@@ -68,28 +73,32 @@ export function getScheduleStatus(
   record: Record | undefined,
   birthDateStr: string,
   now: Date = new Date()
-): { status: ScheduleItemStatus; dueDate: Date; dueDateStr: string; daysDiff: number } {
-  const dueDate = calculateDueDate(birthDateStr, row.bln);
-  const today = startOfDay(now);
-  const due = startOfDay(dueDate);
+): { status: ScheduleItemStatus; dueDate: Date; dueDateStr: string; daysDiff: number; diffDays: number } {
+  const dueDate = calculateDueDate(birthDateStr, row?.bln ?? 0);
+  const today = startOfDay(now instanceof Date && !isNaN(now.getTime()) ? now : new Date());
+  const due = startOfDay(dueDate instanceof Date && !isNaN(dueDate.getTime()) ? dueDate : today);
+
+  const rawDiff = differenceInDays(due, today);
+  const validDiff = typeof rawDiff === "number" && !isNaN(rawDiff) && isFinite(rawDiff) ? rawDiff : 0;
+  const dueDateStr = formatIndonesianDate(dueDate);
 
   if (record?.diberikan) {
     return {
       status: "Selesai",
       dueDate,
-      dueDateStr: formatIndonesianDate(dueDate),
-      daysDiff: differenceInDays(due, today)
+      dueDateStr,
+      daysDiff: validDiff,
+      diffDays: validDiff
     };
   }
-
-  const daysDiff = differenceInDays(due, today);
 
   if (isBefore(due, today)) {
     return {
       status: "Terlambat",
       dueDate,
-      dueDateStr: formatIndonesianDate(dueDate),
-      daysDiff
+      dueDateStr,
+      daysDiff: validDiff,
+      diffDays: validDiff
     };
   }
 
@@ -98,15 +107,17 @@ export function getScheduleStatus(
     return {
       status: "Segera",
       dueDate,
-      dueDateStr: formatIndonesianDate(dueDate),
-      daysDiff
+      dueDateStr,
+      daysDiff: validDiff,
+      diffDays: validDiff
     };
   }
 
   return {
     status: "Terjadwal",
     dueDate,
-    dueDateStr: formatIndonesianDate(dueDate),
-    daysDiff
+    dueDateStr,
+    daysDiff: validDiff,
+    diffDays: validDiff
   };
 }

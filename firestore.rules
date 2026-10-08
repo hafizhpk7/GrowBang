@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'email'])
+        && data.keys().hasOnly(['id', 'email', 'displayName', 'updatedAt'])
+        && data.id is string && data.id == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 256))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 128));
+    }
+
+    function isValidUserAppState(data) {
+      return data.keys().hasAll(['ownerId', 'schemaVersion', 'profiles'])
+        && data.keys().hasOnly(['ownerId', 'schemaVersion', 'activeProfileId', 'profiles', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid
+        && data.schemaVersion is number
+        && data.profiles is list && data.profiles.size() <= 100
+        && (!('activeProfileId' in data) || (data.activeProfileId is string && data.activeProfileId.size() <= 128))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 128));
+    }
+
+    // Test connection path (used by getDocFromServer healthcheck)
+    match /test/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // User state and immunization records subcollection
+      match /appData/{docId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(docId) && isValidUserAppState(incoming());
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(docId) 
+          && incoming().ownerId == existing().ownerId 
+          && isValidUserAppState(incoming());
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+      }
+    }
+  }
+}

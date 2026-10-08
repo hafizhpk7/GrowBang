@@ -21,9 +21,24 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..500;1,9..40,400..500&family=Fraunces:ital,opsz,wght@0,9..144,500..600;1,9..144,500..600&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem("imunisasi_theme") || "system";
+          var isDark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (isDark) {
+            document.documentElement.setAttribute("data-theme", "dark");
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.setAttribute("data-theme", "light");
+            document.documentElement.classList.remove("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-teal-100 selection:text-teal-900">
+  <body class="bg-bg text-text antialiased font-sans selection:bg-primary-tint selection:text-primary-text min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

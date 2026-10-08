@@ -9,7 +9,8 @@ export function getInitialState(): AppState {
   return {
     schemaVersion: SCHEMA_VERSION,
     profiles: [sample],
-    activeProfileId: sample.id
+    activeProfileId: sample.id,
+    paymentMode: "HYBRID"
   };
 }
 
@@ -48,7 +49,8 @@ export function loadAppState(): AppState {
     return {
       schemaVersion: parsed.schemaVersion || SCHEMA_VERSION,
       profiles: parsed.profiles,
-      activeProfileId: parsed.activeProfileId
+      activeProfileId: parsed.activeProfileId,
+      paymentMode: parsed.paymentMode || "HYBRID"
     };
   } catch (error) {
     console.error("Gagal membaca localStorage, beralih ke data awal:", error);

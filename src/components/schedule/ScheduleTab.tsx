@@ -3,51 +3,36 @@ import {
   Search,
   Plus,
   RotateCcw,
-  Calendar,
-  X,
+  Check,
   LayoutGrid,
   Table as TableIcon,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  AlertTriangle,
-  Sparkles,
-  ShieldCheck,
-  CheckCircle2
+  X
 } from "lucide-react";
-import { SEED_SCHEDULE } from "../../data/seed";
-import { Profile, Record, ScheduleRow } from "../../types";
-import { formatRupiah, YEAR_LABELS } from "../../utils/calc";
+import { PaymentMode, Profile, Record, ScheduleRow } from "../../types";
 import { calculateDueDate, formatIndonesianDate, getScheduleStatus } from "../../utils/dates";
-import { GratisBadge, ScheduleStatusBadge, StatusBadge } from "../common/Badges";
+import { formatRupiahRange, getVaccinePriceDisplay } from "../../utils/calc";
+import { CategoryTag, StatusIndicator } from "../common/Badges";
 import { CustomRowModal } from "./CustomRowModal";
-import { RecordModal } from "./RecordModal";
+import { PaymentModeSelector } from "../common/PaymentModeSelector";
 
 interface Props {
   profile: Profile;
-  onUpdateScheduleRow: (updatedRow: ScheduleRow) => void;
+  paymentMode: PaymentMode;
+  onUpdatePaymentMode: (mode: PaymentMode) => void;
+  onUpdateScheduleRow: (row: ScheduleRow) => void;
   onUpdateRecord: (record: Record) => void;
-  onAddCustomRow: (newRow: ScheduleRow) => void;
-  onDeleteCustomRow: (id: string) => void;
+  onAddCustomRow: (row: ScheduleRow) => void;
+  onDeleteCustomRow: (rowId: string) => void;
   onResetSchedule: () => void;
   onOpenVaccineDetail: (ref: string) => void;
 }
 
-type ActiveFilterChip =
-  | "all"
-  | "wajib"
-  | "pilihan"
-  | "kondisional"
-  | "belum"
-  | "selesai"
-  | "terlambat"
-  | "segera"
-  | "gratis"
-  | "swasta";
+type ActiveFilter = "all" | "program" | "pilihan" | "belum" | "selesai" | "terlambat";
 
 export const ScheduleTab: React.FC<Props> = ({
   profile,
+  paymentMode,
+  onUpdatePaymentMode,
   onUpdateScheduleRow,
   onUpdateRecord,
   onAddCustomRow,
@@ -55,145 +40,69 @@ export const ScheduleTab: React.FC<Props> = ({
   onResetSchedule,
   onOpenVaccineDetail
 }) => {
-  // Navigation by Year: "all" or 1..5
-  const [selectedYear, setSelectedYear] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
-
-  // View mode: 'timeline' vs 'table'
-  const [viewMode, setViewMode] = useState<"timeline" | "table">("timeline");
-
-  // Expanded rows state (Set of row IDs that are expanded)
-  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
-
-  // Search & Horizontally Scrollable Filter Chips
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeChip, setActiveChip] = useState<ActiveFilterChip>("all");
-
-  // Modals state
-  const [activeRecordRow, setActiveRecordRow] = useState<ScheduleRow | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | "all">("all");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const [viewMode, setViewMode] = useState<"timeline" | "table">("timeline");
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [customRowToEdit, setCustomRowToEdit] = useState<ScheduleRow | null>(null);
 
-  // Quick record map
   const recordMap = useMemo(() => {
     return new Map<string, Record>(profile.records.map((r) => [r.rowId, r]));
   }, [profile.records]);
 
-  // Filtered and sorted schedule rows
+  // Compute status for all schedule rows
+  const allRowsWithStatus = useMemo(() => {
+    return profile.schedule.map((row) => {
+      const rec = recordMap.get(row.id);
+      const statusInfo = getScheduleStatus(row, rec, profile.tanggalLahir);
+      return {
+        row,
+        record: rec,
+        ...statusInfo
+      };
+    });
+  }, [profile.schedule, profile.tanggalLahir, recordMap]);
+
+  // Filtered rows
   const displayedRows = useMemo(() => {
-    return profile.schedule
-      .filter((row) => {
-        // Year filter
-        if (selectedYear !== "all" && row.tahun !== selectedYear) return false;
-
-        // Search text
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchName = row.vaksin.toLowerCase().includes(q);
-          const matchNote = row.catatan.toLowerCase().includes(q);
-          const matchAge = row.usia.toLowerCase().includes(q);
-          if (!matchName && !matchNote && !matchAge) return false;
-        }
-
-        // Active Filter Chip logic
-        const rec = recordMap.get(row.id);
-        const isGiven = Boolean(rec?.diberikan);
-        const { status: schedStatus } = getScheduleStatus(row, rec, profile.tanggalLahir);
-
-        if (activeChip === "wajib" && row.status !== "Wajib") return false;
-        if (activeChip === "pilihan" && row.status !== "Pilihan") return false;
-        if (activeChip === "kondisional" && row.status !== "Kondisional") return false;
-        if (activeChip === "belum" && isGiven) return false;
-        if (activeChip === "selesai" && !isGiven) return false;
-        if (activeChip === "terlambat" && schedStatus !== "Terlambat") return false;
-        if (activeChip === "segera" && schedStatus !== "Segera") return false;
-        if (activeChip === "gratis" && row.gratis !== "Ya") return false;
-        if (activeChip === "swasta" && row.gratis === "Ya") return false;
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.bln !== b.bln) return a.bln - b.bln;
-        if (a.tahun !== b.tahun) return a.tahun - b.tahun;
-        return a.id.localeCompare(b.id);
-      });
-  }, [profile.schedule, selectedYear, searchQuery, activeChip, recordMap, profile.tanggalLahir]);
-
-  // Group displayed rows into chronological Milestones for Timeline View
-  const milestones = useMemo(() => {
-    const groups: {
-      bln: number;
-      usia: string;
-      dueDateStr: string;
-      tahun: number;
-      rows: ScheduleRow[];
-      completedCount: number;
-      allDone: boolean;
-      hasOverdue: boolean;
-    }[] = [];
-
-    const map = new Map<number, typeof groups[0]>();
-
-    displayedRows.forEach((row) => {
-      let group = map.get(row.bln);
-      if (!group) {
-        const dueDate = calculateDueDate(profile.tanggalLahir, row.bln);
-        group = {
-          bln: row.bln,
-          usia: row.usia,
-          dueDateStr: formatIndonesianDate(dueDate),
-          tahun: row.tahun,
-          rows: [],
-          completedCount: 0,
-          allDone: false,
-          hasOverdue: false
-        };
-        map.set(row.bln, group);
-        groups.push(group);
+    return allRowsWithStatus.filter((item) => {
+      // Year filter
+      if (selectedYear !== "all" && item.row.tahun !== selectedYear) {
+        return false;
       }
-      group.rows.push(row);
-    });
 
-    // Calculate completion & overdue status per milestone
-    groups.forEach((g) => {
-      let done = 0;
-      let overdue = false;
-      g.rows.forEach((r) => {
-        const rec = recordMap.get(r.id);
-        if (rec?.diberikan) done++;
-        const st = getScheduleStatus(r, rec, profile.tanggalLahir).status;
-        if (st === "Terlambat") overdue = true;
-      });
-      g.completedCount = done;
-      g.allDone = g.rows.length > 0 && done === g.rows.length;
-      g.hasOverdue = overdue && !g.allDone;
-    });
+      // Filter chips
+      if (activeFilter === "program" && item.row.status !== "Wajib") return false;
+      if (activeFilter === "pilihan" && item.row.status !== "Pilihan") return false;
+      if (activeFilter === "belum" && item.record?.diberikan) return false;
+      if (activeFilter === "selesai" && !item.record?.diberikan) return false;
+      if (activeFilter === "terlambat" && item.status !== "Terlambat") return false;
 
-    return groups;
-  }, [displayedRows, profile.tanggalLahir, recordMap]);
-
-  // Toggle single row expansion
-  const toggleRowExpansion = (rowId: string) => {
-    setExpandedRowIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(rowId)) {
-        next.delete(rowId);
-      } else {
-        next.add(rowId);
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = item.row.vaksin.toLowerCase().includes(q);
+        const matchUsia = item.row.usia.toLowerCase().includes(q);
+        const matchNote = (item.row.catatan || "").toLowerCase().includes(q);
+        return matchName || matchUsia || matchNote;
       }
-      return next;
+
+      return true;
     });
-  };
+  }, [allRowsWithStatus, selectedYear, activeFilter, searchQuery]);
 
-  // Expand / collapse all currently displayed rows
-  const toggleExpandAll = () => {
-    if (expandedRowIds.size === displayedRows.length) {
-      setExpandedRowIds(new Set());
-    } else {
-      setExpandedRowIds(new Set(displayedRows.map((r) => r.id)));
-    }
-  };
+  // Group displayed rows by year
+  const groupedByYear = useMemo(() => {
+    const map = new Map<number, typeof displayedRows>();
+    displayedRows.forEach((item) => {
+      const list = map.get(item.row.tahun) || [];
+      list.push(item);
+      map.set(item.row.tahun, list);
+    });
+    return map;
+  }, [displayedRows]);
 
-  // Handle quick checkbox toggle
   const handleToggleGiven = (row: ScheduleRow, currentGiven: boolean) => {
     const existingRec = recordMap.get(row.id);
     const todayStr = new Date().toISOString().split("T")[0];
@@ -210,73 +119,61 @@ export const ScheduleTab: React.FC<Props> = ({
     onUpdateRecord(updatedRec);
   };
 
-  // Handle inline change of min cost
-  const handleMinChange = (row: ScheduleRow, value: string) => {
-    const parsed = parseInt(value.replace(/\D/g, ""), 10) || 0;
-    onUpdateScheduleRow({ ...row, min: parsed });
-  };
-
-  // Handle inline change of max cost
-  const handleMaxChange = (row: ScheduleRow, value: string) => {
-    const parsed = parseInt(value.replace(/\D/g, ""), 10) || 0;
-    onUpdateScheduleRow({ ...row, max: parsed });
-  };
-
-  // Handle inline toggle of "masuk"
-  const handleToggleMasuk = (row: ScheduleRow) => {
-    onUpdateScheduleRow({ ...row, masuk: !row.masuk });
-  };
-
   const handleResetConfirmation = () => {
-    if (
-      confirm(
-        "Kembalikan seluruh daftar vaksin dan estimasi biaya ke 35 baris bawaan untuk profil ini? Catatan pemberian yang sudah ada akan tetap tersimpan."
-      )
-    ) {
+    if (confirm("Kembalikan daftar jadwal dan estimasi biaya ke 35 baris bawaan? Catatan yang sudah ada tetap tersimpan.")) {
       onResetSchedule();
     }
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* 1. Header Bar & Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-6 animate-fadeIn max-w-[960px]">
+      {/* 1. Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Jadwal Imunisasi Anak (0–5 Tahun)
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Garis waktu kronologis imunisasi sesuai anjuran IDAI & Kemenkes RI.
+          <h1 className="text-[26px] sm:text-[32px] font-semibold leading-tight text-text tracking-tight">
+            Jadwal imunisasi
+          </h1>
+          <p className="text-[14px] sm:text-[15px] text-text-2 mt-1">
+            Garis waktu kronologis imunisasi 0–5 tahun sesuai anjuran resmi IDAI & Kemenkes RI.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap sm:flex-nowrap">
-          {/* Timeline / Table Switcher */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 shadow-xs">
+        {/* Action controls: wrap gracefully on 320px-430px */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {/* Payment Mode Selector Badge */}
+          <PaymentModeSelector
+            paymentMode={paymentMode}
+            onChange={onUpdatePaymentMode}
+            variant="badge"
+          />
+
+          {/* Timeline / Table Switch */}
+          <div className="flex bg-surface-sunken p-1 rounded-[10px] border border-border">
             <button
               type="button"
               onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition min-h-[36px] ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[8px] text-[12px] sm:text-[13px] transition cursor-pointer min-h-[36px] ${
                 viewMode === "timeline"
-                  ? "bg-white text-[#1F4E78] shadow-xs"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-surface text-text font-semibold border border-border shadow-xs"
+                  : "text-text-2 hover:text-text font-medium"
               }`}
-              title="Tampilan Garis Waktu Kronologis (Timeline View)"
+              title="Tampilan Garis Waktu"
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Timeline</span>
+              <LayoutGrid className="w-4 h-4 shrink-0" />
+              <span className="hidden xs:inline sm:inline">Garis waktu</span>
+              <span className="inline xs:hidden sm:hidden">Timeline</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition min-h-[36px] ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[8px] text-[12px] sm:text-[13px] transition cursor-pointer min-h-[36px] ${
                 viewMode === "table"
-                  ? "bg-white text-[#1F4E78] shadow-xs"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-surface text-text font-semibold border border-border shadow-xs"
+                  : "text-text-2 hover:text-text font-medium"
               }`}
-              title="Tampilan Tabel Lengkap"
+              title="Tampilan Tabel"
             >
-              <TableIcon className="w-3.5 h-3.5" />
+              <TableIcon className="w-4 h-4 shrink-0" />
               <span>Tabel</span>
             </button>
           </div>
@@ -287,455 +184,378 @@ export const ScheduleTab: React.FC<Props> = ({
               setCustomRowToEdit(null);
               setCustomModalOpen(true);
             }}
-            className="px-4 py-2 bg-[#1F4E78] hover:bg-[#153654] text-white rounded-2xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 shadow-sm min-h-[44px]"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-surface hover:bg-surface-sunken text-text text-[12px] sm:text-[13px] font-medium rounded-[10px] border border-border transition min-h-[40px] flex items-center gap-1.5 cursor-pointer shadow-xs hover:border-border-strong shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>Tambah Kustom</span>
+            <Plus className="w-4 h-4 text-primary shrink-0" />
+            <span>Kustom</span>
           </button>
+
           <button
             type="button"
             onClick={handleResetConfirmation}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl text-xs sm:text-sm font-medium transition flex items-center justify-center min-h-[44px] min-w-[44px]"
-            title="Reset ke 35 baris awal"
+            className="p-2 sm:p-2.5 bg-surface hover:bg-surface-sunken text-text-2 hover:text-text rounded-[10px] border border-border transition min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer shadow-xs shrink-0"
+            title="Reset ke 35 baris bawaan"
+            aria-label="Reset ke 35 baris bawaan"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* 2. Year Selector Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        <button
-          type="button"
-          onClick={() => setSelectedYear("all")}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-xs min-h-[44px] ${
-            selectedYear === "all"
-              ? "bg-[#1F4E78] text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200/90"
-          }`}
-        >
-          Semua Usia (0–5 Thn)
-        </button>
-        {([1, 2, 3, 4, 5] as const).map((th) => (
-          <button
-            key={th}
-            type="button"
-            onClick={() => setSelectedYear(th)}
-            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-xs min-h-[44px] flex items-center gap-1.5 ${
-              selectedYear === th
-                ? "bg-[#1F4E78] text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200/90"
-            }`}
-          >
-            <span>Tahun {th}</span>
-            <span className={`text-[11px] font-normal ${selectedYear === th ? "text-teal-200" : "text-slate-400"}`}>
-              ({YEAR_LABELS[th]})
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* 3. Search Bar & HORIZONTAL SCROLLABLE FILTER CHIPS (Like YouTube Categories) */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm space-y-3.5">
-        {/* Search input */}
+      {/* 2. Filters & Search */}
+      <div className="space-y-3">
+        {/* Search bar */}
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-text-2 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama vaksin, usia, atau catatan (misal: PCV, BCG, flu)..."
-            className="w-full pl-10 pr-10 py-3 text-xs sm:text-sm rounded-2xl border border-slate-200 bg-slate-50/80 focus:outline-hidden focus:ring-2 focus:ring-[#1F4E78] min-h-[48px]"
+            placeholder="Cari vaksin, usia, atau catatan..."
+            className="w-full pl-10 pr-9 py-2 text-[14px] rounded-[10px] border border-border bg-surface text-text min-h-[44px] shadow-2xs focus:border-primary"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-text-2 hover:text-text cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+              aria-label="Bersihkan pencarian"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Horizontally scrollable Filter Chips ribbon */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none">
+        {/* Filter Chips: horizontally scrollable container without vertical wrapping */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
           {[
-            { id: "all", label: "Semua Kategori" },
-            { id: "wajib", label: "Wajib (Program)" },
-            { id: "pilihan", label: "Pilihan (IDAI)" },
-            { id: "kondisional", label: "Kondisional" },
-            { id: "belum", label: "Belum Diberikan" },
-            { id: "selesai", label: "Sudah Diberikan" },
-            { id: "terlambat", label: "Terlambat" },
-            { id: "segera", label: "Segera (≤30 hr)" },
-            { id: "gratis", label: "Gratis di Puskesmas" },
-            { id: "swasta", label: "Swasta (Berbayar)" }
+            { id: "all", label: "Semua" },
+            { id: "program", label: "Imunisasi program" },
+            { id: "pilihan", label: "Vaksin pilihan" },
+            { id: "belum", label: "Belum dilakukan" },
+            { id: "selesai", label: "Selesai" },
+            { id: "terlambat", label: "Terlambat" }
           ].map((chip) => {
-            const isChipActive = activeChip === chip.id;
+            const isSelected = activeFilter === chip.id;
             return (
               <button
                 key={chip.id}
                 type="button"
-                onClick={() => setActiveChip(chip.id as ActiveFilterChip)}
-                className={`px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 min-h-[38px] ${
-                  isChipActive
-                    ? "bg-[#1F4E78] text-white shadow-xs scale-102"
-                    : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200/60"
+                onClick={() => setActiveFilter(chip.id as ActiveFilter)}
+                className={`px-3 py-1.5 rounded-[8px] text-[13px] whitespace-nowrap transition cursor-pointer min-h-[36px] shrink-0 ${
+                  isSelected
+                    ? "bg-surface text-text font-semibold border border-border-strong shadow-xs"
+                    : "bg-surface text-text-2 hover:text-text border border-border font-medium"
                 }`}
               >
                 {chip.label}
               </button>
             );
           })}
-        </div>
 
-        {/* Status counter & collapse/expand toggle */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-          <span>Menampilkan <strong>{displayedRows.length}</strong> vaksin ({milestones.length} tahapan usia)</span>
-          <div className="flex items-center gap-3">
-            {displayedRows.length > 0 && (
-              <button
-                type="button"
-                onClick={toggleExpandAll}
-                className="text-[#1F4E78] font-bold hover:underline"
-              >
-                {expandedRowIds.size === displayedRows.length ? "Tutup Semua Rincian" : "Buka Semua Rincian"}
-              </button>
-            )}
-            {(activeChip !== "all" || searchQuery) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setActiveChip("all");
-                }}
-                className="text-slate-400 hover:text-slate-700 font-semibold"
-              >
-                Reset Filter
-              </button>
-            )}
-          </div>
+          <span className="text-border shrink-0">|</span>
+
+          {/* Year selector */}
+          <button
+            type="button"
+            onClick={() => setSelectedYear("all")}
+            className={`px-3 py-1.5 rounded-[8px] text-[13px] whitespace-nowrap transition cursor-pointer min-h-[36px] shrink-0 ${
+              selectedYear === "all"
+                ? "bg-surface text-text font-semibold border border-border-strong shadow-xs"
+                : "bg-surface text-text-2 hover:text-text border border-border font-medium"
+            }`}
+          >
+            Semua tahun
+          </button>
+          {([1, 2, 3, 4, 5] as const).map((th) => (
+            <button
+              key={th}
+              type="button"
+              onClick={() => setSelectedYear(th)}
+              className={`px-3 py-1.5 rounded-[8px] text-[13px] whitespace-nowrap transition cursor-pointer min-h-[36px] shrink-0 ${
+                selectedYear === th
+                  ? "bg-surface text-text font-semibold border border-border-strong shadow-xs"
+                  : "bg-surface text-text-2 hover:text-text border border-border font-medium"
+              }`}
+            >
+              Tahun {th}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 4. VERTICAL TIMELINE VIEW (Chronological Journey) */}
+      {/* 3. Schedule Content */}
       {displayedRows.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center text-slate-500 space-y-2">
-          <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
-          <p className="text-sm font-semibold">Tidak ada jadwal yang sesuai dengan filter atau kata kunci pencarian.</p>
+        <div className="p-8 bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] text-center text-text-2 text-[14px]">
+          Tidak ada jadwal imunisasi yang cocok dengan filter atau pencarian Anda.
         </div>
       ) : viewMode === "timeline" ? (
-        <div className="relative pt-2 pb-8">
-          {/* Vertical continuous line down the left side */}
-          <div className="absolute left-[15px] sm:left-[21px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-blue-300 via-slate-300 to-slate-200" />
+        <div className="space-y-6">
+          {Array.from(groupedByYear.entries()).map(([yearNum, items]) => {
+            return (
+              <div key={yearNum} className="space-y-3">
+                {/* Year Header (sticky) */}
+                <div className="sticky top-16 z-10 bg-bg/95 py-2.5 border-b border-border flex items-baseline justify-between backdrop-blur-xs">
+                  <h2 className="text-[18px] font-serif font-semibold text-text">
+                    Tahun {yearNum}{" "}
+                    <span className="text-[13px] text-text-2 font-normal font-sans">
+                      (
+                      {yearNum === 1
+                        ? "0–12 bulan"
+                        : yearNum === 2
+                        ? "1–2 tahun"
+                        : yearNum === 3
+                        ? "2–3 tahun"
+                        : yearNum === 4
+                        ? "3–4 tahun"
+                        : "4–5 tahun"}
+                      )
+                    </span>
+                  </h2>
+                  <span className="text-[13px] text-text font-medium font-tabular">
+                    {items.length} jadwal
+                  </span>
+                </div>
 
-          {/* Chronological Milestones Stack */}
-          <div className="space-y-8">
-            {milestones.map((m) => {
-              return (
-                <div key={m.bln} className="relative pl-9 sm:pl-12">
-                  {/* Milestone Node on the timeline */}
-                  <div
-                    className={`absolute left-0 sm:left-1.5 top-0.5 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs transition-all z-10 border-2 ${
-                      m.allDone
-                        ? "bg-emerald-500 border-white text-white shadow-emerald-500/20"
-                        : m.hasOverdue
-                        ? "bg-rose-600 border-white text-white shadow-rose-600/20 animate-pulse"
-                        : "bg-white border-[#1F4E78] text-[#1F4E78]"
-                    }`}
-                    title={`Milestone usia ${m.usia}`}
-                  >
-                    {m.allDone ? (
-                      <Check className="w-4 h-4 stroke-[3]" />
-                    ) : m.hasOverdue ? (
-                      <AlertTriangle className="w-4 h-4" />
-                    ) : (
-                      <span>{m.bln === 0 ? "0" : `${m.bln}m`}</span>
-                    )}
-                  </div>
+                {/* Rows as elevated card container */}
+                <div className="bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] divide-y divide-border overflow-hidden">
+                  {items.map((item) => {
+                    const isDone = Boolean(item.record?.diberikan);
+                    const priceInfo = getVaccinePriceDisplay(item.row, paymentMode);
 
-                  {/* Milestone Header Info */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap mb-3 pt-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-extrabold text-slate-900 text-sm sm:text-base">
-                        Usia {m.usia}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        • Jatuh tempo: <strong className="text-slate-700">{m.dueDateStr}</strong>
-                      </span>
-                    </div>
+                    return (
+                      <div
+                        key={item.row.id}
+                        className="p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 hover:bg-surface-sunken/40 transition-colors"
+                      >
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {/* Checkbox (minimum 44px touch area) */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleGiven(item.row, isDone)}
+                            className={`w-6 h-6 rounded-[6px] border flex items-center justify-center shrink-0 mt-0.5 transition cursor-pointer min-h-[44px] min-w-[44px] -m-2.5 p-2.5 ${
+                              isDone
+                                ? "bg-primary border-primary text-primary-fg"
+                                : "border-border-strong hover:border-text bg-surface shadow-2xs"
+                            }`}
+                            aria-label={`Tandai ${item.row.vaksin} selesai`}
+                          >
+                            {isDone && <Check className="w-4 h-4 stroke-[2.5]" />}
+                          </button>
 
-                    <div className="flex items-center gap-1.5">
-                      {m.allDone ? (
-                        <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Lengkap ({m.completedCount}/{m.rows.length})
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                          {m.completedCount}/{m.rows.length} Selesai
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Corresponding Vaccine Cards placed on the right side of the timeline */}
-                  <div className="space-y-3">
-                    {m.rows.map((row) => {
-                      const rec = recordMap.get(row.id);
-                      const isGiven = Boolean(rec?.diberikan);
-                      const { status, dueDateStr } = getScheduleStatus(row, rec, profile.tanggalLahir);
-                      const isExpanded = expandedRowIds.has(row.id);
-
-                      return (
-                        <div
-                          key={row.id}
-                          className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs overflow-hidden ${
-                            isGiven
-                              ? "border-emerald-200/90 bg-emerald-50/20"
-                              : "border-slate-200/90 hover:border-slate-300"
-                          }`}
-                        >
-                          {/* Row Header */}
-                          <div className="p-3.5 sm:p-4 flex items-center justify-between gap-3">
-                            {/* Left: Big Checkbox & Vaccine Details */}
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => handleToggleGiven(row, isGiven)}
-                                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all ${
-                                  isGiven
-                                    ? "bg-emerald-500 border-emerald-600 text-white shadow-xs"
-                                    : "bg-slate-50 border-slate-300 text-transparent hover:border-slate-400"
+                                onClick={() => onOpenVaccineDetail(item.row.ref)}
+                                className={`text-sm sm:text-base font-semibold hover:text-primary hover:underline text-left cursor-pointer break-words leading-snug ${
+                                  isDone ? "text-text-2 line-through" : "text-text"
                                 }`}
-                                title={isGiven ? "Tandai belum diberikan" : "Tandai sudah diberikan"}
-                                aria-label={`Tandai ${row.vaksin} sudah diberikan`}
                               >
-                                <Check className={`w-5 h-5 ${isGiven ? "text-white" : "opacity-0"}`} />
+                                {item.row.vaksin}
                               </button>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => onOpenVaccineDetail(row.ref)}
-                                    className="font-extrabold text-slate-900 hover:text-[#1F4E78] text-sm sm:text-base leading-tight hover:underline text-left truncate"
-                                  >
-                                    {row.vaksin}
-                                  </button>
-                                  {row.isCustom && (
-                                    <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                                      Kustom
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 mt-1">
-                                  <StatusBadge status={row.status} size="sm" />
-                                  <GratisBadge gratis={row.gratis} size="sm" />
-                                  <ScheduleStatusBadge status={status} size="sm" />
-                                </div>
-                              </div>
+                              <CategoryTag gratis={item.row.gratis} />
                             </div>
 
-                            {/* Right: Price & Expand/Action */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="text-right hidden sm:block">
-                                <span className="text-xs font-mono font-bold text-slate-700 block">
-                                  {row.gratis === "Ya" ? "Gratis" : `${formatRupiah(row.min)} – ${formatRupiah(row.max)}`}
-                                </span>
-                                <span className="text-[10px] text-slate-400">
-                                  {row.masuk ? "Masuk Total" : "Dikecualikan"}
-                                </span>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleRowExpansion(row.id)}
-                                className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
-                                title={isExpanded ? "Tutup rincian" : "Buka rincian biaya & aksi"}
-                              >
-                                {isExpanded ? (
-                                  <ChevronUp className="w-5 h-5 text-[#1F4E78]" />
-                                ) : (
-                                  <ChevronDown className="w-5 h-5" />
-                                )}
-                              </button>
+                            <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-[12px] sm:text-[13px] text-text-2">
+                              <span className="font-medium text-text">Usia {item.row.usia}</span>
+                              <span className="text-text-3">·</span>
+                              <StatusIndicator status={item.status} />
+                              {item.dueDateStr && (
+                                <>
+                                  <span className="text-text-3">·</span>
+                                  <span className="font-medium">{item.dueDateStr}</span>
+                                </>
+                              )}
                             </div>
+
+                            {item.row.catatan && (
+                              <p className="text-[12px] text-text-3 line-clamp-2 break-words leading-relaxed pt-0.5">
+                                {item.row.catatan}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Price estimate & Details button: Dedicated bottom row on mobile (max-sm), side-by-side on desktop (sm+) */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 mt-2.5 sm:mt-0 pt-2.5 sm:pt-0 border-t border-border/40 sm:border-t-0 pl-9 sm:pl-0">
+                          <div className="text-left sm:text-right">
+                            <span className={`text-[13px] font-medium font-tabular block ${
+                              priceInfo.isFree ? "text-primary font-semibold" : "text-text"
+                            }`}>
+                              {priceInfo.text}
+                            </span>
+                            {priceInfo.warningNote && (
+                              <span className="inline-block text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 mt-0.5 font-medium">
+                                {priceInfo.warningNote}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Expanded Card Details */}
-                          {isExpanded && (
-                            <div className="p-4 bg-slate-50/80 border-t border-slate-100 space-y-3.5 animate-fadeIn">
-                              {/* Clinical notes if available */}
-                              {row.catatan && (
-                                <p className="text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-200/80 leading-relaxed">
-                                  {row.catatan}
-                                </p>
-                              )}
-
-                              {/* Editable Price & Masuk Total */}
-                              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Biaya Swasta (Min – Maks / Dosis)
-                                  </label>
-                                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#0000FF]">
-                                    <input
-                                      type="text"
-                                      value={new Intl.NumberFormat("id-ID").format(row.min)}
-                                      onChange={(e) => handleMinChange(row, e.target.value)}
-                                      className="w-24 px-2.5 py-1.5 rounded-xl border border-blue-300 bg-blue-50/20 text-right min-h-[38px] focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <span>–</span>
-                                    <input
-                                      type="text"
-                                      value={new Intl.NumberFormat("id-ID").format(row.max)}
-                                      onChange={(e) => handleMaxChange(row, e.target.value)}
-                                      className="w-24 px-2.5 py-1.5 rounded-xl border border-blue-300 bg-blue-50/20 text-right min-h-[38px] focus:ring-2 focus:ring-blue-500"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1 sm:text-right">
-                                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Masuk Perhitungan Total?
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleMasuk(row)}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition min-h-[38px] ${
-                                      row.masuk
-                                        ? "text-[#0000FF] border-blue-300 bg-blue-50"
-                                        : "text-slate-400 border-slate-300 bg-slate-100"
-                                    }`}
-                                  >
-                                    {row.masuk ? "Ya (Dihitung)" : "Tidak (Dikecualikan)"}
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Bottom Action buttons */}
-                              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenVaccineDetail(row.ref)}
-                                  className="text-xs font-bold text-[#1F4E78] hover:underline py-1.5 flex items-center gap-1"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5" />
-                                  <span>Lihat Info Medis & KIPI</span>
-                                </button>
-
-                                <div className="flex items-center gap-2">
-                                  {row.isCustom && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onDeleteCustomRow(row.id)}
-                                      className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-xl font-bold transition min-h-[40px]"
-                                    >
-                                      Hapus
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveRecordRow(row)}
-                                    className="px-4 py-2 bg-[#1F4E78] hover:bg-[#153654] text-white rounded-xl text-xs font-bold transition shadow-xs min-h-[40px]"
-                                  >
-                                    Catat Tempat & Klaim Asuransi
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => onOpenVaccineDetail(item.row.ref)}
+                            className="px-3.5 py-2 rounded-[8px] bg-surface-sunken hover:bg-border text-[13px] text-primary hover:text-primary-hover font-semibold transition cursor-pointer min-h-[40px] sm:min-h-[36px] flex items-center justify-center border border-border shrink-0 active:scale-95"
+                          >
+                            Info Detail
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
-        /* Traditional Spreadsheet Table View */
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-[#1F4E78] text-white text-[11px] font-bold uppercase tracking-wider">
-                  <th className="py-3 px-3 w-12 text-center">Beri</th>
-                  <th className="py-3 px-3 w-16">Usia</th>
-                  <th className="py-3 px-4">Nama Vaksin</th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                  <th className="py-3 px-3 text-center">Gratis</th>
-                  <th className="py-3 px-3">Jatuh Tempo</th>
-                  <th className="py-3 px-3 text-right">Biaya Swasta (Rp)</th>
-                  <th className="py-3 px-3 text-center">Aksi</th>
+        /* Table View with robust structured layout and responsive overflow */
+        <div className="bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-left text-[14px] min-w-[760px] table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[155px]" />
+                <col className="min-w-[220px]" />
+                <col className="w-[100px]" />
+                <col className="w-[130px]" />
+                <col className="w-[160px]" />
+                <col className="w-[85px]" />
+              </colgroup>
+              <thead className="bg-[#F4EFEA]/80 dark:bg-surface-sunken/80 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+                <tr>
+                  <th scope="col" className="py-3.5 px-4 text-left">
+                    Status
+                  </th>
+                  <th scope="col" className="py-3.5 px-4 text-left">
+                    Vaksin
+                  </th>
+                  <th scope="col" className="py-3.5 px-3 text-left">
+                    Usia
+                  </th>
+                  <th scope="col" className="py-3.5 px-3 text-left">
+                    Kategori
+                  </th>
+                  <th scope="col" className="py-3.5 px-3 text-left">
+                    Estimasi Biaya
+                  </th>
+                  <th scope="col" className="py-3.5 px-4 text-right">
+                    Aksi
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayedRows.map((row) => {
-                  const rec = recordMap.get(row.id);
-                  const isGiven = Boolean(rec?.diberikan);
-                  const { dueDateStr } = getScheduleStatus(row, rec, profile.tanggalLahir);
+              <tbody className="divide-y divide-border/70">
+                {displayedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-text-2 text-[14px]">
+                      Tidak ada imunisasi yang cocok dengan filter atau kata kunci.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedRows.map((item) => {
+                    const isDone = Boolean(item.record?.diberikan);
+                    const priceInfo = getVaccinePriceDisplay(item.row, paymentMode);
+                    return (
+                      <tr
+                        key={item.row.id}
+                        className={`transition-colors hover:bg-surface-sunken/40 group ${
+                          isDone ? "bg-surface/50" : "bg-surface"
+                        }`}
+                      >
+                        {/* 1. Status Column: Checkbox + Status indicator aligned on starting axis */}
+                        <td className="py-3.5 px-4 align-top">
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleGiven(item.row, isDone)}
+                              className={`w-5 h-5 rounded-[5px] border flex items-center justify-center shrink-0 cursor-pointer min-h-[36px] min-w-[36px] -m-2 p-2 transition ${
+                                isDone
+                                  ? "bg-primary border-primary text-primary-fg"
+                                  : "border-border-strong bg-surface hover:border-text"
+                              }`}
+                              title={isDone ? "Tandai belum diberikan" : "Tandai sudah diberikan"}
+                              aria-label={`Tandai status ${item.row.vaksin}`}
+                            >
+                              <span
+                                className={`w-4 h-4 rounded-[4px] flex items-center justify-center ${
+                                  isDone ? "bg-primary text-primary-fg" : "border border-border-strong"
+                                }`}
+                              >
+                                {isDone && <Check className="w-3 h-3 stroke-[3]" />}
+                              </span>
+                            </button>
+                            <StatusIndicator status={item.status} />
+                          </div>
+                        </td>
 
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleGiven(row, isGiven)}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto border transition ${
-                            isGiven
-                              ? "bg-emerald-500 border-emerald-600 text-white"
-                              : "bg-white border-slate-300 text-transparent"
-                          }`}
-                        >
-                          <Check className={`w-4 h-4 ${isGiven ? "text-white" : "opacity-0"}`} />
-                        </button>
-                      </td>
-                      <td className="py-3 px-3 font-semibold text-slate-700">{row.usia}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900">{row.vaksin}</td>
-                      <td className="py-3 px-3 text-center"><StatusBadge status={row.status} size="sm" /></td>
-                      <td className="py-3 px-3 text-center"><GratisBadge gratis={row.gratis} size="sm" /></td>
-                      <td className="py-3 px-3 text-slate-600 font-mono text-xs">{dueDateStr}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-[#0000FF]">
-                        {row.gratis === "Ya" ? "Rp 0" : `${formatRupiah(row.min)} – ${formatRupiah(row.max)}`}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setActiveRecordRow(row)}
-                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-[#1F4E78] font-bold rounded-lg text-xs"
-                        >
-                          Catat
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* 2. Vaccine Column: Bold title and secondary description tightly grouped flex-col */}
+                        <td className="py-3.5 px-4 align-top">
+                          <div className="flex flex-col gap-1 pr-2">
+                            <button
+                              type="button"
+                              onClick={() => onOpenVaccineDetail(item.row.ref)}
+                              className={`font-semibold text-[14px] text-left hover:text-primary transition-colors cursor-pointer break-words leading-snug ${
+                                isDone ? "text-text-2 line-through" : "text-text"
+                              }`}
+                            >
+                              {item.row.vaksin}
+                            </button>
+                            {item.row.catatan ? (
+                              <p className="text-[12px] text-text-3 leading-relaxed break-words line-clamp-2">
+                                {item.row.catatan}
+                              </p>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* 3. Age Column: Pill-like timeframe badge */}
+                        <td className="py-3.5 px-3 align-top whitespace-nowrap">
+                          <span className="inline-block px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-surface-sunken text-text border border-border">
+                            {item.row.usia}
+                          </span>
+                        </td>
+
+                        {/* 4. Category Column: Tag inside its own designated column */}
+                        <td className="py-3.5 px-3 align-top whitespace-nowrap">
+                          <CategoryTag gratis={item.row.gratis} />
+                        </td>
+
+                        {/* 5. Cost Column: Tabular price estimate */}
+                        <td className="py-3.5 px-3 align-top whitespace-nowrap font-tabular text-[13px] font-medium">
+                          {priceInfo.isFree ? (
+                            <span className="text-primary font-semibold">{priceInfo.text}</span>
+                          ) : (
+                            <div>
+                              <span className="text-text">{priceInfo.text}</span>
+                              {priceInfo.warningNote && (
+                                <span className="block text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 mt-0.5 w-max font-medium">
+                                  {priceInfo.warningNote}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 6. Action Column: Pinned strictly to the right */}
+                        <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => onOpenVaccineDetail(item.row.ref)}
+                            className="px-2.5 py-1 text-[13px] text-primary hover:text-primary-hover hover:bg-primary-tint font-semibold rounded-[6px] transition cursor-pointer min-h-[32px] inline-flex items-center justify-center border border-transparent hover:border-primary/20"
+                          >
+                            Detail
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Record Administration Modal */}
-      {activeRecordRow && (
-        <RecordModal
-          row={activeRecordRow}
-          record={recordMap.get(activeRecordRow.id)}
-          dueDateStr={formatIndonesianDate(calculateDueDate(profile.tanggalLahir, activeRecordRow.bln))}
-          onClose={() => setActiveRecordRow(null)}
-          onSave={(rec) => {
-            onUpdateRecord(rec);
-            setActiveRecordRow(null);
-          }}
-        />
-      )}
-
-      {/* Custom Row Add/Edit Modal */}
+      {/* Custom Row Modal */}
       {customModalOpen && (
         <CustomRowModal
           isOpen={customModalOpen}
@@ -744,12 +564,17 @@ export const ScheduleTab: React.FC<Props> = ({
             setCustomModalOpen(false);
             setCustomRowToEdit(null);
           }}
-          onSave={(savedRow) => {
+          onSave={(row) => {
             if (customRowToEdit) {
-              onUpdateScheduleRow(savedRow);
+              onUpdateScheduleRow(row);
             } else {
-              onAddCustomRow(savedRow);
+              onAddCustomRow(row);
             }
+            setCustomModalOpen(false);
+            setCustomRowToEdit(null);
+          }}
+          onDelete={(id) => {
+            onDeleteCustomRow(id);
             setCustomModalOpen(false);
             setCustomRowToEdit(null);
           }}

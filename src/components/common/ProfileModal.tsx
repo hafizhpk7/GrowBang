@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-  X,
-  Plus,
-  Baby,
-  Calendar,
-  Trash2,
-  Edit2,
-  AlertTriangle
-} from "lucide-react";
+import { X, Plus, Calendar, Trash2, Edit2 } from "lucide-react";
 import { createNewProfile } from "../../data/seed";
 import { Profile } from "../../types";
 import { getChildAge } from "../../utils/dates";
@@ -21,6 +13,7 @@ interface Props {
   onAddProfile: (profile: Profile) => void;
   onUpdateProfile?: (profile: Profile) => void;
   onDeleteProfile?: (id: string) => void;
+  initialMode?: "list" | "add";
 }
 
 export const ProfileModal: React.FC<Props> = ({
@@ -31,11 +24,12 @@ export const ProfileModal: React.FC<Props> = ({
   onSelectProfile,
   onAddProfile,
   onUpdateProfile,
-  onDeleteProfile
+  onDeleteProfile,
+  initialMode = "list"
 }) => {
   if (!isOpen) return null;
 
-  const [mode, setMode] = useState<"list" | "add" | "edit">("list");
+  const [mode, setMode] = useState<"list" | "add" | "edit">(initialMode);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [panggilan, setPanggilan] = useState("");
   const [tanggalLahir, setTanggalLahir] = useState(
@@ -44,6 +38,23 @@ export const ProfileModal: React.FC<Props> = ({
   const [catatan, setCatatan] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialMode === "add") {
+        setPanggilan("");
+        setTanggalLahir(new Date().toISOString().split("T")[0]);
+        setCatatan("");
+        setErrorMsg("");
+        setConfirmDeleteId(null);
+        setMode("add");
+      } else {
+        setMode("list");
+        setErrorMsg("");
+        setConfirmDeleteId(null);
+      }
+    }
+  }, [isOpen, initialMode]);
 
   const startAdd = () => {
     setPanggilan("");
@@ -67,7 +78,7 @@ export const ProfileModal: React.FC<Props> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!panggilan.trim()) {
-      setErrorMsg("Nama panggilan anak wajib diisi.");
+      setErrorMsg("Nama panggilan anak harus diisi.");
       return;
     }
 
@@ -91,115 +102,67 @@ export const ProfileModal: React.FC<Props> = ({
     }
   };
 
-  const executeDelete = (id: string) => {
+  const handleDelete = (id: string) => {
     if (onDeleteProfile) {
       onDeleteProfile(id);
+      setConfirmDeleteId(null);
     }
-    setConfirmDeleteId(null);
   };
 
-  const targetDeleteProfile = profiles.find((p) => p.id === confirmDeleteId);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      {/* Bottom sheet on mobile / centered modal on desktop */}
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ backgroundColor: "var(--scrim)" }}
+      role="dialog"
+      aria-modal="true"
+    >
       <div
-        className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-0"
-        role="dialog"
-        aria-modal="true"
+        className="bg-surface rounded-t-[16px] sm:rounded-[12px] max-w-[480px] w-full border border-border overflow-hidden flex flex-col max-h-[90vh] pb-[max(env(safe-area-inset-bottom),1rem)] sm:pb-0 animate-fadeIn"
+        style={{ boxShadow: "var(--shadow-popover)" }}
       >
-        {/* Mobile Grab Bar */}
-        <div className="sm:hidden flex justify-center pt-3 pb-1">
-          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
+          <div className="w-10 h-1 bg-border-strong rounded-full" />
         </div>
 
-        {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#1F4E78]/10 text-[#1F4E78] flex items-center justify-center">
-              <Baby className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                {mode === "list" ? "Kelola Profil Anak" : mode === "add" ? "Tambah Profil Baru" : "Ubah Profil Anak"}
-              </h3>
-              <p className="text-xs text-slate-500">
-                {mode === "list" ? "Pilih anak aktif atau tambahkan profil" : "Informasi tanggal lahir & riwayat"}
-              </p>
-            </div>
-          </div>
+        {/* Modal Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h3 className="text-[18px] font-serif font-medium text-text">
+            {mode === "list"
+              ? "Kelola profil anak"
+              : mode === "add"
+              ? "Tambah profil anak"
+              : "Edit profil anak"}
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200/50 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="p-2 text-text-2 hover:text-text rounded-[10px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
             aria-label="Tutup"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Delete Confirmation Overlay inside modal */}
-        {confirmDeleteId && targetDeleteProfile && (
-          <div className="p-5 bg-rose-50 border-b border-rose-200 space-y-3 animate-fadeIn">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-              <div className="text-xs sm:text-sm text-rose-900 leading-relaxed">
-                <strong>Hapus profil "{targetDeleteProfile.panggilan}"?</strong>
-                <p className="mt-1 text-rose-700">
-                  {profiles.length <= 1
-                    ? "Ini adalah satu-satunya profil yang ada. Jika dihapus, Anda akan diarahkan ke layar selamat datang untuk membuat profil baru."
-                    : "Seluruh jadwal dan riwayat vaksin yang tercatat untuk anak ini akan dihapus permanen dari browser."}
-                </p>
-              </div>
+        {/* Modal Body */}
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-[14px]">
+          {errorMsg && (
+            <div className="p-3 bg-danger-tint text-danger rounded-[10px] text-[13px]">
+              {errorMsg}
             </div>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 min-h-[40px]"
-              >
-                Batalkan
-              </button>
-              <button
-                type="button"
-                onClick={() => executeDelete(confirmDeleteId)}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-sm min-h-[40px]"
-              >
-                Ya, Hapus Sekarang
-              </button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Body Content */}
-        <div className="p-5 overflow-y-auto space-y-4">
           {mode === "list" ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Daftar Profil ({profiles.length})
-                </span>
-                <button
-                  type="button"
-                  onClick={startAdd}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1F4E78] hover:underline px-3 py-1.5 rounded-xl bg-blue-50/80 min-h-[40px]"
-                >
-                  <Plus className="w-4 h-4" />
-                  Tambah Anak
-                </button>
-              </div>
-
-              <div className="space-y-2.5">
+              <div className="space-y-1.5 divide-y divide-border">
                 {profiles.map((p) => {
                   const isActive = p.id === activeProfileId;
-                  const age = getChildAge(p.tanggalLahir);
+                  const childAge = getChildAge(p.tanggalLahir);
+
                   return (
                     <div
                       key={p.id}
-                      className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                        isActive
-                          ? "border-[#1F4E78] bg-blue-50/50 shadow-xs ring-1 ring-[#1F4E78]/30"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      className={`pt-2 first:pt-0 pb-2 flex items-center justify-between gap-3 ${
+                        isActive ? "font-medium" : ""
                       }`}
                     >
                       <button
@@ -208,36 +171,29 @@ export const ProfileModal: React.FC<Props> = ({
                           onSelectProfile(p.id);
                           onClose();
                         }}
-                        className="flex-1 text-left flex items-center gap-3.5 min-h-[48px]"
+                        className="text-left flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
                       >
                         <div
-                          className={`w-11 h-11 rounded-2xl flex items-center justify-center font-extrabold text-base shrink-0 shadow-2xs ${
+                          className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] shrink-0 ${
                             isActive
-                              ? "bg-[#1F4E78] text-white"
-                              : "bg-slate-100 text-slate-600"
+                              ? "bg-accent-tint text-accent-text"
+                              : "bg-surface-sunken text-text-2"
                           }`}
                         >
                           {p.panggilan.slice(0, 1).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-extrabold text-slate-900 text-sm sm:text-base truncate">
-                              {p.panggilan}
-                            </h4>
+                          <p className="text-[15px] text-text truncate">
+                            {p.panggilan}
                             {isActive && (
-                              <span className="text-[10px] bg-[#1F4E78] text-white px-2 py-0.5 rounded-full font-bold">
-                                Aktif
+                              <span className="ml-2 text-[12px] text-primary">
+                                (aktif)
                               </span>
                             )}
-                          </div>
-                          <p className="text-xs text-teal-700 font-semibold mt-0.5">
-                            {age.text}
                           </p>
-                          {p.catatan && (
-                            <p className="text-[11px] text-slate-400 italic line-clamp-1 mt-0.5">
-                              {p.catatan}
-                            </p>
-                          )}
+                          <p className="text-[12px] text-text-2">
+                            {childAge.text} · lahir {p.tanggalLahir}
+                          </p>
                         </div>
                       </button>
 
@@ -245,111 +201,122 @@ export const ProfileModal: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => startEdit(p)}
-                          className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
-                          title="Ubah info profil"
-                          aria-label="Ubah info anak"
+                          className="p-2 text-text-2 hover:text-text rounded-[10px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                          aria-label={`Edit ${p.panggilan}`}
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteId(p.id)}
-                          className="p-2 text-rose-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
-                          title="Hapus profil anak"
-                          aria-label="Hapus profil anak"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+
+                        {profiles.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(p.id)}
+                            className="p-2 text-danger hover:bg-danger-tint rounded-[10px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                            aria-label={`Hapus ${p.panggilan}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-200/50 text-xs text-blue-900 leading-relaxed">
-                💡 <strong>Tips Privasi:</strong> Cukup nama panggilan saja, tidak perlu nama lengkap. Data tersimpan privat di browser Anda.
-              </div>
 
-              {errorMsg && (
-                <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl border border-rose-200">
-                  {errorMsg}
+              {/* Confirm Delete Subpanel */}
+              {confirmDeleteId && (
+                <div className="p-3 bg-danger-tint border border-danger/30 rounded-[10px] space-y-2">
+                  <p className="text-[13px] text-danger font-medium">
+                    Hapus profil ini beserta seluruh catatan imunisasinya?
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-3 py-1.5 bg-surface text-text rounded-[8px] border border-border text-[13px]"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(confirmDeleteId)}
+                      className="px-3 py-1.5 bg-danger text-white rounded-[8px] text-[13px] font-medium"
+                    >
+                      Ya, hapus
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Nama Panggilan <span className="text-rose-500">*</span>
+              <button
+                type="button"
+                onClick={startAdd}
+                className="w-full py-2.5 bg-surface hover:bg-surface-sunken text-primary border border-border-strong rounded-[10px] font-medium flex items-center justify-center gap-2 transition min-h-[44px] cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah anak baru</span>
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[13px] font-medium text-text">
+                  Nama panggilan anak
                 </label>
                 <input
                   type="text"
                   required
                   value={panggilan}
                   onChange={(e) => setPanggilan(e.target.value)}
-                  placeholder="Misal: Alif, Kayla, Danis"
-                  className="w-full px-4 py-3 text-sm rounded-2xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#1F4E78] min-h-[48px]"
+                  placeholder="Contoh: Kayla / Danis"
+                  className="w-full px-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  Tanggal Lahir <span className="text-rose-500">*</span>
+              <div className="space-y-1">
+                <label className="text-[13px] font-medium text-text">
+                  Tanggal lahir
                 </label>
                 <input
                   type="date"
                   required
                   value={tanggalLahir}
                   onChange={(e) => setTanggalLahir(e.target.value)}
-                  className="w-full px-4 py-3 text-sm rounded-2xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#1F4E78] min-h-[48px]"
+                  className="w-full px-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Catatan Tambahan (Opsional)
+              <div className="space-y-1">
+                <label className="text-[13px] font-medium text-text">
+                  Catatan khusus (opsional)
                 </label>
-                <textarea
-                  rows={2}
+                <input
+                  type="text"
                   value={catatan}
                   onChange={(e) => setCatatan(e.target.value)}
-                  placeholder="Misal: Golongan darah O, riwayat alergi dingin, dll."
-                  className="w-full px-4 py-2.5 text-sm rounded-2xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#1F4E78]"
+                  placeholder="Riwayat alergi, prematur, dsb."
+                  className="w-full px-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2.5">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setMode("list")}
-                  className="px-4 py-3 text-sm font-semibold rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition min-h-[48px]"
+                  className="px-4 py-2 text-[14px] font-medium text-text hover:bg-surface-sunken rounded-[10px] border border-border-strong min-h-[44px] cursor-pointer"
                 >
-                  Batal
+                  Kembali
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-3 text-sm font-bold rounded-2xl bg-[#1F4E78] hover:bg-[#153654] text-white shadow-md transition min-h-[48px]"
+                  className="px-5 py-2 text-[14px] font-medium bg-primary hover:bg-primary-hover text-primary-fg rounded-[10px] min-h-[44px] cursor-pointer"
                 >
-                  {mode === "add" ? "Tambah Profil" : "Simpan Perubahan"}
+                  Simpan profil
                 </button>
               </div>
             </form>
           )}
         </div>
-
-        {/* Footer */}
-        {mode === "list" && (
-          <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-sm font-bold transition min-h-[44px]"
-            >
-              Tutup
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

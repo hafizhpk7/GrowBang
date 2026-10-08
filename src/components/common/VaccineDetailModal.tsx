@@ -1,8 +1,8 @@
 import React from "react";
-import { Info, X, ShieldCheck, HeartPulse, CheckCircle2, Thermometer } from "lucide-react";
+import { X, ShieldCheck, HeartPulse } from "lucide-react";
 import { SEED_VACCINE_INFO } from "../../data/seed";
 import { ScheduleRow, VaccineInfo } from "../../types";
-import { GratisBadge, StatusBadge } from "./Badges";
+import { CategoryTag, StatusBadge } from "./Badges";
 
 interface Props {
   vaccineRef: string | null;
@@ -20,41 +20,38 @@ export const VaccineDetailModal: React.FC<Props> = ({ vaccineRef, onClose, sched
   const relatedSchedule = scheduleRows.filter((r) => r.ref.toLowerCase() === vaccineRef.toLowerCase());
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      {/* Responsive Bottom Sheet / Centered Card */}
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ backgroundColor: "var(--scrim)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
       <div
-        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[88vh] pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-0"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
+        className="bg-surface rounded-t-[16px] sm:rounded-[12px] max-w-[480px] w-full border border-border overflow-hidden flex flex-col max-h-[88vh] pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-0 animate-fadeIn"
+        style={{ boxShadow: "var(--shadow-popover)" }}
       >
-        {/* Mobile Grab Handle */}
-        <div className="sm:hidden flex justify-center pt-3 pb-1">
-          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
+          <div className="w-10 h-1 bg-border-strong rounded-full" />
         </div>
 
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/70">
-          <div className="space-y-1.5 pr-3">
-            <div className="flex items-center gap-2.5">
-              <span className="p-2 bg-teal-50 text-teal-700 rounded-2xl">
-                <Info className="w-5 h-5" />
-              </span>
-              <h3 id="modal-title" className="text-lg font-extrabold text-slate-900">
-                {info ? info.nama : vaccineRef}
-              </h3>
-            </div>
+        <div className="p-4 border-b border-border flex items-start justify-between">
+          <div className="space-y-1 pr-3">
+            <h3 id="modal-title" className="text-[20px] font-serif font-medium text-text">
+              {info ? info.nama : vaccineRef}
+            </h3>
             {info && (
               <div className="flex items-center gap-2 pt-0.5">
-                <StatusBadge status={info.status} size="sm" />
-                <GratisBadge gratis={info.gratisProgram === "Ya" ? "Ya" : "Tidak"} size="sm" />
+                <StatusBadge status={info.status} />
+                <CategoryTag gratis={info.gratisProgram === "Ya" ? "Ya" : "Tidak"} />
               </div>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/50 transition min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+            className="p-2 text-text-2 hover:text-text rounded-[10px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer shrink-0"
             aria-label="Tutup"
           >
             <X className="w-5 h-5" />
@@ -62,64 +59,51 @@ export const VaccineDetailModal: React.FC<Props> = ({ vaccineRef, onClose, sched
         </div>
 
         {/* Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-[14px] text-text">
           {info ? (
             <>
               {/* Protects Against */}
-              <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-200/50 space-y-1.5">
-                <div className="flex items-center gap-2 text-teal-800 font-bold text-xs tracking-wide uppercase">
+              <div className="p-3.5 rounded-[10px] bg-primary-tint/60 border border-primary/20 space-y-1">
+                <div className="flex items-center gap-1.5 text-primary-text font-medium text-[13px]">
                   <ShieldCheck className="w-4 h-4" />
-                  Penyakit yang Dicegah
+                  <span>Penyakit yang dicegah</span>
                 </div>
-                <p className="text-slate-900 font-semibold leading-relaxed">
+                <p className="text-text leading-relaxed">
                   {info.melindungi}
                 </p>
               </div>
 
               {/* Why Important */}
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-200/50 space-y-1.5">
-                <div className="flex items-center gap-2 text-[#1F4E78] font-bold text-xs tracking-wide uppercase">
+              <div className="p-3.5 rounded-[10px] bg-surface-sunken border border-border space-y-1">
+                <div className="flex items-center gap-1.5 text-text-2 font-medium text-[13px]">
                   <HeartPulse className="w-4 h-4" />
-                  Mengapa Sangat Penting
+                  <span>Mengapa penting</span>
                 </div>
-                <p className="text-slate-700 leading-relaxed text-xs sm:text-sm">
+                <p className="text-text-2 leading-relaxed">
                   {info.penting}
                 </p>
               </div>
 
-              {/* Specific Post-Immunization Reactions / Side Effects (KIPI) */}
-              <div className="bg-amber-50/80 p-4 rounded-2xl border border-amber-200/70 space-y-1.5">
-                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs tracking-wide uppercase">
-                  <Thermometer className="w-4 h-4 text-amber-600" />
-                  Reaksi Setelah Imunisasi (KIPI)
-                </div>
-                <p className="text-amber-950 leading-relaxed text-xs sm:text-sm">
+              {/* KIPI */}
+              <div className="space-y-1 pt-1">
+                <h4 className="text-[13px] font-medium text-text">Reaksi setelah imunisasi (KIPI)</h4>
+                <p className="text-[13px] text-text-2 leading-relaxed">
                   {info.efekSamping}
                 </p>
               </div>
 
-              {/* Schedules in 0-5 years */}
+              {/* Schedule list */}
               {relatedSchedule.length > 0 && (
-                <div className="space-y-2 pt-1">
-                  <div className="font-bold text-slate-800 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-[#1F4E78]" />
-                    Jadwal Pemberian pada Anak
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {relatedSchedule.map((row) => (
+                <div className="space-y-1.5 pt-2 border-t border-border">
+                  <h4 className="text-[13px] font-medium text-text">Jadwal pemberian (0–5 tahun)</h4>
+                  <div className="space-y-1">
+                    {relatedSchedule.map((r) => (
                       <div
-                        key={row.id}
-                        className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70 text-xs space-y-1"
+                        key={r.id}
+                        className="flex items-center justify-between text-[13px] py-1 border-b border-border/50 last:border-none"
                       >
-                        <div className="font-bold text-slate-900 flex justify-between">
-                          <span>{row.vaksin}</span>
-                          <span className="text-[#1F4E78] font-extrabold">{row.usia}</span>
-                        </div>
-                        {row.catatan && (
-                          <div className="text-slate-500 text-[11px] leading-tight">
-                            {row.catatan}
-                          </div>
-                        )}
+                        <span className="text-text">{r.vaksin}</span>
+                        <span className="text-text-2">Usia {r.usia}</span>
                       </div>
                     ))}
                   </div>
@@ -127,23 +111,8 @@ export const VaccineDetailModal: React.FC<Props> = ({ vaccineRef, onClose, sched
               )}
             </>
           ) : (
-            <p className="text-slate-500">Informasi detail untuk vaksin ini tidak ditemukan di basis data standar.</p>
+            <p className="text-text-2">Informasi detail vaksin ini belum tersedia.</p>
           )}
-
-          <div className="text-xs text-slate-500 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70">
-            <strong>Penanganan Mandiri:</strong> Kompres air hangat pada bekas suntikan jika bengkak/nyeri. Berikan ASI/cairan lebih sering dan parasetamol sesuai dosis anjuran dokter bila anak demam.
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto px-6 py-3 bg-[#1F4E78] hover:bg-[#153654] text-white rounded-2xl text-sm font-bold shadow-sm transition min-h-[48px]"
-          >
-            Tutup
-          </button>
         </div>
       </div>
     </div>

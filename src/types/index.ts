@@ -50,6 +50,7 @@ export type ImmunizationRecord = VaccineRecord;
 
 export interface Insurance {
   namaProduk: string;
+  nomorPolis?: string;
   limitPerTahun: {
     1: number;
     2: number;
@@ -74,10 +75,13 @@ export interface Profile {
   insurance: Insurance;
 }
 
+export type PaymentMode = "HYBRID" | "FULL_PRIVATE" | "FULL_BPJS";
+
 export interface AppState {
   schemaVersion: number;
   profiles: Profile[];
   activeProfileId: string;
+  paymentMode?: PaymentMode;
 }
 
 export interface CostSummaryYear {

@@ -1,4 +1,4 @@
-import { CostSummaryTotal, CostSummaryYear, ScheduleRow, VaccineRecord } from "../types";
+import { CostSummaryTotal, CostSummaryYear, PaymentMode, ScheduleRow, VaccineRecord } from "../types";
 
 export interface ScenarioOptions {
   heksavalenSwasta: boolean;
@@ -22,6 +22,51 @@ export function formatRupiah(amount: number | undefined | null, dashForZero = fa
 export function formatRupiahRange(min: number, max: number, dashForZero = false): string {
   if (min === 0 && max === 0 && dashForZero) return "-";
   return `${formatRupiah(min, dashForZero)} – ${formatRupiah(max, dashForZero)}`;
+}
+
+export function getVaccinePriceDisplay(
+  row: ScheduleRow,
+  paymentMode: PaymentMode = "HYBRID"
+): {
+  text: string;
+  isFree: boolean;
+  warningNote?: string;
+} {
+  const isMandatory = row.gratis === "Ya" || row.status === "Wajib";
+
+  if (paymentMode === "FULL_PRIVATE") {
+    return {
+      text: formatRupiahRange(row.min, row.max),
+      isFree: false
+    };
+  }
+
+  if (paymentMode === "FULL_BPJS") {
+    if (isMandatory) {
+      return {
+        text: "Rp 0 (Puskesmas/BPJS)",
+        isFree: true
+      };
+    }
+    return {
+      text: formatRupiahRange(row.min, row.max),
+      isFree: false,
+      warningNote: "Tidak ditanggung BPJS"
+    };
+  }
+
+  // HYBRID
+  if (isMandatory) {
+    return {
+      text: "Rp 0 (Puskesmas)",
+      isFree: true
+    };
+  }
+
+  return {
+    text: formatRupiahRange(row.min, row.max),
+    isFree: false
+  };
 }
 
 export function applyScenarios(schedule: ScheduleRow[], options: ScenarioOptions): ScheduleRow[] {
@@ -48,25 +93,36 @@ export function applyScenarios(schedule: ScheduleRow[], options: ScenarioOptions
 
 export function calculateCostSummary(
   schedule: ScheduleRow[],
-  scenarios: ScenarioOptions = { heksavalenSwasta: false, sertakanKondisional: false }
+  scenarios: ScenarioOptions = { heksavalenSwasta: false, sertakanKondisional: false },
+  paymentMode: PaymentMode = "HYBRID"
 ): { years: CostSummaryYear[]; total: CostSummaryTotal } {
   const activeRows = applyScenarios(schedule, scenarios);
 
   const years: CostSummaryYear[] = ([1, 2, 3, 4, 5] as const).map((tahun) => {
     const yearRows = activeRows.filter((r) => r.tahun === tahun && r.masuk === true);
 
-    // Tanggung sendiri: gratis !== "Ya" (note: "Sebagian" is included)
-    const outOfPocketRows = yearRows.filter((r) => r.gratis !== "Ya");
-    const tanggungSendiriMin = outOfPocketRows.reduce((sum, r) => sum + (Number(r.min) || 0), 0);
-    const tanggungSendiriMax = outOfPocketRows.reduce((sum, r) => sum + (Number(r.max) || 0), 0);
-
-    // Semua di swasta: all active rows in this year
     const semuaSwastaMin = yearRows.reduce((sum, r) => sum + (Number(r.min) || 0), 0);
     const semuaSwastaMax = yearRows.reduce((sum, r) => sum + (Number(r.max) || 0), 0);
 
-    // Dibebaskan program = Semua swasta - Tanggung sendiri
-    const dibebaskanMin = Math.max(0, semuaSwastaMin - tanggungSendiriMin);
-    const dibebaskanMax = Math.max(0, semuaSwastaMax - tanggungSendiriMax);
+    let tanggungSendiriMin = 0;
+    let tanggungSendiriMax = 0;
+    let dibebaskanMin = 0;
+    let dibebaskanMax = 0;
+
+    if (paymentMode === "FULL_PRIVATE") {
+      tanggungSendiriMin = semuaSwastaMin;
+      tanggungSendiriMax = semuaSwastaMax;
+      dibebaskanMin = 0;
+      dibebaskanMax = 0;
+    } else {
+      // HYBRID or FULL_BPJS
+      const outOfPocketRows = yearRows.filter((r) => r.gratis !== "Ya");
+      tanggungSendiriMin = outOfPocketRows.reduce((sum, r) => sum + (Number(r.min) || 0), 0);
+      tanggungSendiriMax = outOfPocketRows.reduce((sum, r) => sum + (Number(r.max) || 0), 0);
+
+      dibebaskanMin = Math.max(0, semuaSwastaMin - tanggungSendiriMin);
+      dibebaskanMax = Math.max(0, semuaSwastaMax - tanggungSendiriMax);
+    }
 
     return {
       tahun,

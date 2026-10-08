@@ -1,124 +1,113 @@
 import React from "react";
-import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react";
 import { Gratis, ScheduleItemStatus, Status } from "../../types";
 
-interface StatusBadgeProps {
-  status: Status;
-  size?: "sm" | "md";
-}
-
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = "md" }) => {
-  const sizeClasses = size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
-
-  switch (status) {
-    case "Wajib":
-      return (
-        <span
-          className={`inline-flex items-center font-bold tracking-tight rounded-full border border-emerald-500/20 text-[#1b5e20] bg-[#e8f5e9] shadow-2xs ${sizeClasses}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mr-1.5 shrink-0" />
-          Wajib
-        </span>
-      );
-    case "Pilihan":
-      return (
-        <span
-          className={`inline-flex items-center font-bold tracking-tight rounded-full border border-amber-500/20 text-[#854d0e] bg-[#fef9c3] shadow-2xs ${sizeClasses}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 shrink-0" />
-          Pilihan
-        </span>
-      );
-    case "Kondisional":
-      return (
-        <span
-          className={`inline-flex items-center font-bold tracking-tight rounded-full border border-slate-300/40 text-slate-700 bg-slate-100 shadow-2xs ${sizeClasses}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5 shrink-0" />
-          Kondisional
-        </span>
-      );
-    default:
-      return null;
-  }
-};
-
-interface GratisBadgeProps {
-  gratis: Gratis;
-  size?: "sm" | "md";
-}
-
-export const GratisBadge: React.FC<GratisBadgeProps> = ({ gratis, size = "md" }) => {
-  const sizeClasses = size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
-
-  switch (gratis) {
-    case "Ya":
-      return (
-        <span
-          className={`inline-flex items-center font-semibold rounded-full bg-teal-50 text-teal-800 border border-teal-200/70 shadow-2xs ${sizeClasses}`}
-        >
-          Gratis (Puskesmas)
-        </span>
-      );
-    case "Sebagian":
-      return (
-        <span
-          className={`inline-flex items-center font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200/70 shadow-2xs ${sizeClasses}`}
-        >
-          Sebagian
-        </span>
-      );
-    case "Tidak":
-      return (
-        <span
-          className={`inline-flex items-center font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200/80 shadow-2xs ${sizeClasses}`}
-        >
-          Berbayar
-        </span>
-      );
-    default:
-      return null;
-  }
-};
-
-interface ScheduleStatusBadgeProps {
+interface StatusDotProps {
   status: ScheduleItemStatus;
-  size?: "sm" | "md";
+  label?: string;
 }
 
-export const ScheduleStatusBadge: React.FC<ScheduleStatusBadgeProps> = ({ status, size = "md" }) => {
-  const sizeClasses = size === "sm" ? "px-2.5 py-0.5 text-[11px] font-bold" : "px-3 py-1 text-xs font-bold";
-
+/**
+ * Status Indicators with light tinted background pill:
+ * Selesai: bg-primary-tint text-primary-text border border-primary/20
+ * Segera: bg-warning-tint text-warning-text border border-warning/25
+ * Terlambat: bg-danger-tint text-danger border border-danger/25
+ * Terjadwal: bg-surface-sunken text-text-2 border border-border
+ */
+export const StatusIndicator: React.FC<StatusDotProps> = ({ status, label }) => {
   switch (status) {
     case "Selesai":
       return (
-        <span className={`inline-flex items-center rounded-full bg-emerald-500 text-white shadow-xs ${sizeClasses}`}>
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" />
-          Selesai
-        </span>
-      );
-    case "Terlambat":
-      return (
-        <span className={`inline-flex items-center rounded-full bg-rose-500 text-white shadow-xs animate-pulse ${sizeClasses}`}>
-          <AlertCircle className="w-3.5 h-3.5 mr-1 shrink-0" />
-          Terlambat
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[6px] text-[12px] bg-primary-tint text-primary-text font-medium border border-primary/20">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+          <span>{label || "Selesai"}</span>
         </span>
       );
     case "Segera":
       return (
-        <span className={`inline-flex items-center rounded-full bg-amber-500 text-white shadow-xs ${sizeClasses}`}>
-          <Clock className="w-3.5 h-3.5 mr-1 shrink-0" />
-          Segera (&le;30 hr)
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[6px] text-[12px] bg-warning-tint text-warning-text font-medium border border-warning/25">
+          <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
+          <span>{label || "Segera (≤30 hr)"}</span>
+        </span>
+      );
+    case "Terlambat":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[6px] text-[12px] bg-danger-tint text-danger font-medium border border-danger/25">
+          <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
+          <span>{label || "Terlambat"}</span>
         </span>
       );
     case "Terjadwal":
+    default:
       return (
-        <span className={`inline-flex items-center rounded-full bg-sky-100 text-sky-800 border border-sky-200 ${sizeClasses}`}>
-          <Calendar className="w-3 h-3 mr-1 text-sky-600 shrink-0" />
-          Terjadwal
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[6px] text-[12px] bg-surface-sunken text-text-2 border border-border">
+          <span className="w-1.5 h-1.5 rounded-full bg-border-strong shrink-0" />
+          <span>{label || "Terjadwal"}</span>
         </span>
       );
-    default:
-      return null;
   }
+};
+
+/**
+ * Tags (Category):
+ * "Gratis" = var(--primary-tint) bg + var(--primary-text), 12px/semibold, radius 6, padding 2px 8px
+ * "Bayar sendiri" = var(--surface-sunken) bg + border + var(--text)
+ * "Subsidi" = var(--warning-tint) bg + var(--warning-text)
+ */
+export const CategoryTag: React.FC<{
+  gratis: Gratis;
+  status?: Status;
+}> = ({ gratis }) => {
+  if (gratis === "Ya") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-semibold bg-primary-tint text-primary-text border border-primary/20">
+        Gratis
+      </span>
+    );
+  }
+
+  if (gratis === "Sebagian") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-warning-tint text-warning-text border border-warning/20">
+        Subsidi
+      </span>
+    );
+  }
+
+  // gratis === "Tidak"
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-surface-sunken text-text border border-border">
+      Bayar sendiri
+    </span>
+  );
+};
+
+// Aliases for compatibility
+export const StatusBadge: React.FC<{ status: Status; size?: "sm" | "md" }> = ({ status }) => {
+  if (status === "Wajib") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-semibold bg-primary-tint text-primary-text border border-primary/20">
+        Imunisasi program
+      </span>
+    );
+  }
+  if (status === "Pilihan") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-surface-sunken text-text-2 border border-border">
+        Vaksin pilihan
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-surface-sunken text-text-2 border border-border">
+      Kondisional
+    </span>
+  );
+};
+
+export const GratisBadge: React.FC<{ gratis: Gratis; size?: "sm" | "md" }> = ({ gratis }) => {
+  return <CategoryTag gratis={gratis} />;
+};
+
+export const ScheduleStatusBadge: React.FC<{ status: ScheduleItemStatus; size?: "sm" | "md" }> = ({ status }) => {
+  return <StatusIndicator status={status} />;
 };

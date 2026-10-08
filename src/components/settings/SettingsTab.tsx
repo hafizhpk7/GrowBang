@@ -1,69 +1,27 @@
-import React, { useState, useRef } from "react";
-import {
-  Settings,
-  FileSpreadsheet,
-  Download,
-  Upload,
-  Calendar,
-  Printer,
-  Trash2,
-  ExternalLink,
-  ShieldAlert,
-  Info,
-  CheckCircle2,
-  Lock,
-  Database
-} from "lucide-react";
+import React, { useState } from "react";
+import { User as UserIcon, LogOut, Trash2, ExternalLink, Sun, Moon, Laptop } from "lucide-react";
 import { ASSUMPTIONS_AND_NOTES, OFFICIAL_SOURCES } from "../../data/seed";
 import { AppState, Profile } from "../../types";
-import {
-  downloadJsonBackup,
-  exportToExcel,
-  exportToIcs,
-  parseAndValidateBackup
-} from "../../utils/export";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme, ThemeMode } from "../../context/ThemeContext";
 
 interface Props {
   appState: AppState;
   activeProfile: Profile;
-  onRestoreState: (state: AppState) => void;
   onClearAllData: () => void;
 }
 
 export const SettingsTab: React.FC<Props> = ({
   appState,
   activeProfile,
-  onRestoreState,
   onClearAllData
 }) => {
-  const [restoreStatus, setRestoreStatus] = useState<{ success: boolean; msg: string } | null>(null);
+  const { user, lastSyncTime, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
+
   const [deleteStep, setDeleteStep] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const res = parseAndValidateBackup(content);
-      if (res.success && res.data) {
-        onRestoreState(res.data);
-        setRestoreStatus({
-          success: true,
-          msg: `Berhasil memulihkan ${res.data.profiles.length} profil data imunisasi!`
-        });
-      } else {
-        setRestoreStatus({
-          success: false,
-          msg: res.error || "Format berkas tidak sesuai."
-        });
-      }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleStartDelete = () => {
     setDeleteStep(1);
@@ -78,305 +36,255 @@ export const SettingsTab: React.FC<Props> = ({
     }
   };
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+    } catch (err) {
+      console.error("Gagal keluar:", err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+    }
+  };
+
+  const providerId = user?.providerData?.[0]?.providerId || "";
+  const isGoogleAccount = providerId === "google.com";
+
   return (
-    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn max-w-[960px]">
       {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Settings className="w-6 h-6 text-[#1F4E78]" />
-            Pengaturan & Ekspor Berkas
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Cadangkan data keluarga, ekspor jadwal ke Excel/Kalender, dan tinjau sumber resmi.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-[28px] sm:text-[32px] font-medium leading-tight text-text">
+          Pengaturan & akun
+        </h1>
+        <p className="text-[15px] text-text-2 mt-1">
+          Kelola profil pengguna, tema tampilan, rujukan medis resmi, dan penyimpanan data.
+        </p>
       </div>
 
-      {/* 2. Export & Import Center */}
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-        <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-          <Download className="w-4 h-4 text-[#1F4E78]" />
-          Ekspor & Pencadangan Data
-        </h3>
+      {/* 2. User Account Card */}
+      <section className="bg-surface rounded-[12px] border border-border p-5 sm:p-6 space-y-5">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h2 className="text-[16px] font-medium text-text">Profil pengguna</h2>
+          <span className="text-[12px] text-primary font-medium flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary" />
+            Tersinkronisasi otomatis
+          </span>
+        </div>
 
-        {restoreStatus && (
-          <div
-            className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-center gap-2.5 ${
-              restoreStatus.success
-                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                : "bg-rose-50 text-rose-800 border-rose-200"
-            }`}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt={user.displayName || "Pengguna"}
+                className="w-12 h-12 rounded-full object-cover shrink-0 border border-border"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-accent-tint text-accent-text flex items-center justify-center font-medium text-[16px] shrink-0">
+                {(user?.displayName || user?.email || "U").slice(0, 1).toUpperCase()}
+              </div>
+            )}
+
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-[15px] text-text truncate">
+                  {user?.displayName || "Orang Tua"}
+                </span>
+                <span className="text-[12px] px-2 py-0.5 rounded-[6px] bg-surface-sunken text-text-2 border border-border">
+                  {isGoogleAccount ? "Google" : "Email"}
+                </span>
+              </div>
+              <p className="text-[13px] text-text-2 truncate">{user?.email}</p>
+              <p className="text-[12px] text-text-3">
+                {lastSyncTime ? `Sinkronisasi terakhir: ${lastSyncTime}` : "Tersambung ke Cloud Firestore"}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowLogoutConfirm(true)}
+            className="self-start sm:self-auto px-4 py-2 bg-surface hover:bg-surface-sunken text-danger text-[13px] font-medium rounded-[10px] border border-border-strong transition min-h-[40px] flex items-center gap-2 cursor-pointer"
           >
-            {restoreStatus.success ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />}
-            <span>{restoreStatus.msg}</span>
+            <LogOut className="w-4 h-4" />
+            <span>Keluar</span>
+          </button>
+        </div>
+
+        {showLogoutConfirm && (
+          <div className="p-4 bg-danger-tint/50 border border-danger/30 rounded-[10px] space-y-2">
+            <p className="text-[14px] font-medium text-danger">
+              Apakah Anda yakin ingin keluar dari akun?
+            </p>
+            <p className="text-[13px] text-text-2">
+              Data imunisasi anak tetap tersimpan aman di cloud dan dapat diakses kembali saat masuk.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-3 py-1.5 bg-surface text-text text-[13px] rounded-[8px] border border-border"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="px-3.5 py-1.5 bg-danger text-white text-[13px] font-medium rounded-[8px]"
+              >
+                {isLoggingOut ? "Keluar..." : "Ya, keluar"}
+              </button>
+            </div>
           </div>
         )}
+      </section>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Export Excel */}
-          <button
-            type="button"
-            onClick={() => exportToExcel(activeProfile)}
-            className="p-4 rounded-3xl border border-slate-200/80 bg-slate-50/70 hover:bg-emerald-50/70 hover:border-emerald-300 transition text-left space-y-2 flex flex-col justify-between min-h-[110px]"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-2xl">
-                <FileSpreadsheet className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                4 Sheets
-              </span>
-            </div>
-            <div>
-              <div className="font-extrabold text-sm text-slate-900">
-                Ekspor Excel (.xlsx)
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Jadwal, Ringkasan, Fungsi & Catatan
-              </p>
-            </div>
-          </button>
-
-          {/* Export ICS Calendar */}
-          <button
-            type="button"
-            onClick={() => exportToIcs(activeProfile)}
-            className="p-4 rounded-3xl border border-slate-200/80 bg-slate-50/70 hover:bg-blue-50/70 hover:border-blue-300 transition text-left space-y-2 flex flex-col justify-between min-h-[110px]"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="p-2 bg-blue-100 text-blue-800 rounded-2xl">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full">
-                .ics
-              </span>
-            </div>
-            <div>
-              <div className="font-extrabold text-sm text-slate-900">
-                Ekspor ke Kalender
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Pengingat di Google / Apple Calendar
-              </p>
-            </div>
-          </button>
-
-          {/* Backup JSON */}
-          <button
-            type="button"
-            onClick={() => downloadJsonBackup(appState)}
-            className="p-4 rounded-3xl border border-slate-200/80 bg-slate-50/70 hover:bg-teal-50/70 hover:border-teal-300 transition text-left space-y-2 flex flex-col justify-between min-h-[110px]"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="p-2 bg-teal-100 text-teal-800 rounded-2xl">
-                <Download className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-extrabold bg-teal-100 text-teal-800 px-2.5 py-0.5 rounded-full">
-                JSON
-              </span>
-            </div>
-            <div>
-              <div className="font-extrabold text-sm text-slate-900">
-                Cadangkan Data (JSON)
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Simpan semua profil & jadwal
-              </p>
-            </div>
-          </button>
-
-          {/* Restore JSON */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-4 rounded-3xl border border-slate-200/80 bg-slate-50/70 hover:bg-amber-50/70 hover:border-amber-300 transition text-left space-y-2 flex flex-col justify-between min-h-[110px]"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-2xl">
-                <Upload className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
-                Restore
-              </span>
-            </div>
-            <div>
-              <div className="font-extrabold text-sm text-slate-900">
-                Pulihkan dari JSON
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Impor file cadangan tersimpan
-              </p>
-            </div>
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
-
-        {/* Print Button */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-          <div className="text-xs text-slate-600">
-            Mencetak lembar jadwal rapi tanpa elemen navigasi browser:
-          </div>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="w-full sm:w-auto px-5 py-2.5 bg-[#1F4E78] hover:bg-[#153654] text-white text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow-xs min-h-[44px]"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak / Simpan PDF</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Security & Privacy Information */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Client-side Privacy Guarantee */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-1.5">
-          <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-teal-600" />
-            Privasi 100% Client-Side
-          </h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Data tersimpan eksklusif di memori lokal browser perangkat Anda dan tidak pernah dikirim ke server luar. Aman dan rahasia untuk keluarga Anda.
+      {/* 3. Theme Setting (Terang / Gelap / Sistem) */}
+      <section className="bg-surface rounded-[12px] border border-border p-5 sm:p-6 space-y-4">
+        <div>
+          <h2 className="text-[16px] font-medium text-text">Tema tampilan</h2>
+          <p className="text-[13px] text-text-2 mt-0.5">
+            Pilih preferensi tampilan warna aplikasi yang nyaman untuk mata Anda.
           </p>
         </div>
 
-        {/* Local Persistence Status */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-1.5">
-          <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-            <Database className="w-4 h-4 text-[#1F4E78]" />
-            Penyimpanan Lokal Aktif
-          </h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Menyimpan {appState.profiles.length} profil anak dengan {activeProfile.schedule.length} baris jadwal. Disarankan mengunduh cadangan JSON sebelum mengganti perangkat.
-          </p>
+        {/* Segmented control: container var(--surface-sunken), radius 10 per Section 5 */}
+        <div className="inline-flex bg-surface-sunken p-1 rounded-[10px] border border-border">
+          {[
+            { id: "light", label: "Terang", icon: Sun },
+            { id: "dark", label: "Gelap", icon: Moon },
+            { id: "system", label: "Sistem", icon: Laptop }
+          ].map((item) => {
+            const Icon = item.icon;
+            const isSelected = theme === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTheme(item.id as ThemeMode)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[13px] transition cursor-pointer ${
+                  isSelected
+                    ? "bg-surface text-text font-medium border border-border"
+                    : "text-text-2 hover:text-text border border-transparent"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* 4. Notes & Assumptions */}
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-          <Info className="w-5 h-5 text-[#1F4E78]" />
-          <h3 className="font-extrabold text-base text-slate-900">
-            Catatan, Asumsi & Ketentuan Jadwal
-          </h3>
-        </div>
+      {/* 4. Data Storage & Privacy Note */}
+      <section className="bg-surface rounded-[12px] border border-border p-5 sm:p-6 space-y-3">
+        <h2 className="text-[16px] font-medium text-text">Data & privasi keluarga</h2>
+        <p className="text-[13px] text-text-2 leading-relaxed">
+          Menyimpan {appState.profiles.length} profil anak dengan {activeProfile.schedule.length} jadwal vaksin. Informasi anak diisolasi per akun pengguna menggunakan Firebase Security Rules dan tetap dapat diakses secara offline melalui Progressive Web App (PWA).
+        </p>
+      </section>
 
-        <div className="space-y-3">
+      {/* 5. Medical References */}
+      <section className="bg-surface rounded-[12px] border border-border p-5 sm:p-6 space-y-4">
+        <h2 className="text-[16px] font-medium text-text">Rujukan medis resmi</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {ASSUMPTIONS_AND_NOTES.map((item, idx) => (
-            <div
-              key={idx}
-              className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 text-xs space-y-1"
-            >
-              <div className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#1F4E78] shrink-0" />
-                {item.topik}
-              </div>
-              <p className="text-slate-600 leading-relaxed pl-4">
-                {item.keterangan}
-              </p>
+            <div key={idx} className="p-3.5 rounded-[10px] bg-surface-sunken/60 border border-border text-[13px] space-y-1">
+              <div className="font-medium text-text">{item.topik}</div>
+              <p className="text-text-2 leading-relaxed">{item.keterangan}</p>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* 5. Official Sources */}
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-3.5">
-        <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5 text-teal-600" />
-          Sumber Rujukan Resmi & Media
-        </h3>
-        <p className="text-xs text-slate-500">
-          Tautan referensi resmi Kementerian Kesehatan RI, IDAI, dan data kisaran harga faskes:
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          {OFFICIAL_SOURCES.map((src, idx) => (
+        <div className="pt-2 border-t border-border flex flex-wrap items-center gap-2">
+          <span className="text-[12px] text-text-2">Sumber rujukan:</span>
+          {OFFICIAL_SOURCES.map((source, idx) => (
             <a
               key={idx}
-              href={src.url}
+              href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-3.5 bg-slate-50 hover:bg-blue-50/80 border border-slate-200/80 rounded-2xl text-xs font-bold text-slate-800 hover:text-[#1F4E78] transition flex items-center justify-between group min-h-[48px]"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-surface-sunken hover:bg-border text-text text-[12px] border border-border transition"
             >
-              <span className="line-clamp-1">{src.nama}</span>
-              <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-[#1F4E78] shrink-0 ml-2" />
+              <span>{source.nama}</span>
+              <ExternalLink className="w-3 h-3 text-text-2" />
             </a>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* 6. Danger Zone */}
-      <div className="bg-rose-50/50 rounded-3xl border border-rose-200 p-5 sm:p-6 space-y-3">
-        <div className="flex items-center gap-2 text-rose-700 font-extrabold text-sm sm:text-base">
-          <Trash2 className="w-5 h-5" />
-          Zona Bahaya: Reset Total Aplikasi
+      <section className="rounded-[12px] border border-danger/30 p-5 sm:p-6 space-y-3 bg-danger-tint/30">
+        <div className="flex items-center gap-2 text-danger font-medium text-[16px]">
+          <Trash2 className="w-4 h-4" />
+          <span>Hapus semua data</span>
         </div>
-        <p className="text-xs text-slate-600 leading-relaxed">
-          Menghapus seluruh profil anak, jadwal yang diubah, dan riwayat klaim dari penyimpanan browser. Pastikan sudah mengunduh cadangan JSON sebelum melanjutkan.
+        <p className="text-[13px] text-text-2 leading-relaxed">
+          Tindakan ini akan mengosongkan riwayat jadwal dan mereset profil anak di perangkat ini ke setelan awal.
         </p>
 
-        {deleteStep === 0 ? (
+        {deleteStep === 0 && (
           <button
             type="button"
             onClick={handleStartDelete}
-            className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold rounded-2xl transition shadow-xs min-h-[44px]"
+            className="px-4 py-2 bg-surface hover:bg-danger-tint text-danger text-[13px] font-medium rounded-[10px] border border-danger/40 transition min-h-[40px] cursor-pointer"
           >
-            Hapus Semua Data Aplikasi
+            Hapus data aplikasi
           </button>
-        ) : deleteStep === 1 ? (
-          <div className="p-4 bg-white rounded-2xl border border-rose-300 space-y-2.5">
-            <p className="text-xs sm:text-sm font-extrabold text-rose-600">
-              Konfirmasi Tahap 1: Anda yakin ingin menghapus seluruh data aplikasi?
+        )}
+
+        {deleteStep === 1 && (
+          <div className="p-3.5 bg-surface rounded-[10px] border border-danger/40 space-y-2">
+            <p className="text-[13px] font-medium text-danger">
+              Peringatan tahap 1: Anda yakin ingin menghapus data seluruh anak?
             </p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteStep(0)}
-                className="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-xl text-slate-700 min-h-[40px]"
-              >
-                Batalkan
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-xs bg-rose-600 text-white font-bold rounded-xl min-h-[40px]"
-              >
-                Lanjutkan ke Tahap Akhir
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 bg-rose-100 rounded-2xl border border-rose-400 space-y-2.5">
-            <p className="text-xs sm:text-sm font-black text-rose-800">
-              Konfirmasi Tahap 2: Klik tombol di bawah untuk menghapus permanen sekarang juga.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteStep(0)}
-                className="px-4 py-2 text-xs font-semibold bg-slate-200 rounded-xl text-slate-700 min-h-[40px]"
+                className="px-3 py-1.5 text-text bg-surface-sunken rounded-[8px] text-[13px]"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 text-xs bg-rose-700 hover:bg-rose-800 text-white font-black rounded-xl shadow-sm min-h-[40px]"
+                className="px-3.5 py-1.5 bg-danger text-white font-medium rounded-[8px] text-[13px]"
               >
-                Hapus Permanen & Mulai Ulang
+                Lanjutkan
               </button>
             </div>
           </div>
         )}
-      </div>
+
+        {deleteStep === 2 && (
+          <div className="p-3.5 bg-surface rounded-[10px] border border-danger space-y-2">
+            <p className="text-[13px] font-medium text-danger">
+              Konfirmasi terakhir: Data yang dihapus tidak dapat dipulihkan!
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteStep(0)}
+                className="px-3 py-1.5 text-text bg-surface-sunken rounded-[8px] text-[13px]"
+              >
+                Batalkan
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-3.5 py-1.5 bg-danger text-white font-medium rounded-[8px] text-[13px]"
+              >
+                Ya, hapus permanen
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

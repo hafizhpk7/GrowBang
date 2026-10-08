@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -40,17 +40,22 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-rose-100 p-6 text-center space-y-4">
-            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-8 h-8" />
+        <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+          <div
+            className="max-w-[420px] w-full bg-surface rounded-[12px] border border-border p-6 text-center space-y-4"
+            style={{ boxShadow: "var(--shadow-popover)" }}
+          >
+            <div className="w-12 h-12 bg-danger-tint text-danger rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">Terjadi Kendala Teknis</h2>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Aplikasi mendeteksi error pada tampilan. Jangan khawatir, data jadwal dan profil dapat dipulihkan ke data standar.
+            <h2 className="text-[20px] font-serif font-medium text-text">
+              Terjadi kendala teknis
+            </h2>
+            <p className="text-[14px] text-text-2 leading-relaxed">
+              Aplikasi mendeteksi kendala pada tampilan. Jangan khawatir, data jadwal dan profil dapat dimuat ulang.
             </p>
             {this.state.error && (
-              <pre className="text-xs bg-slate-100 p-3 rounded-lg text-slate-700 overflow-auto text-left max-h-32 border border-slate-200">
+              <pre className="text-[12px] bg-surface-sunken p-3 rounded-[8px] text-text-2 overflow-auto text-left max-h-32 border border-border">
                 {this.state.error.message}
               </pre>
             )}
@@ -58,17 +63,16 @@ export class ErrorBoundary extends Component<Props, State> {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="w-full py-2.5 px-4 bg-[#1F4E78] hover:bg-[#153654] text-white rounded-xl font-medium transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-primary-fg rounded-[10px] text-[14px] font-medium transition cursor-pointer min-h-[44px]"
               >
-                <RefreshCw className="w-4 h-4" />
-                Muat Ulang Halaman
+                Muat ulang halaman
               </button>
               <button
                 type="button"
                 onClick={this.handleReset}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition text-sm"
+                className="w-full py-2 text-[13px] text-text-2 hover:text-text cursor-pointer"
               >
-                Pulihkan ke Pengaturan Awal
+                Pulihkan data bawaan
               </button>
             </div>
           </div>

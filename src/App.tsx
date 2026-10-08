@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { SEED_SCHEDULE } from "./data/seed";
-import { AppState, Insurance, Profile, Record, ScheduleRow } from "./types";
+import { AppState, Insurance, PaymentMode, Profile, Record, ScheduleRow } from "./types";
 import { clearAllData, getInitialState, loadAppState, saveAppState } from "./utils/storage";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Header } from "./components/common/Header";
@@ -16,48 +16,91 @@ import { VaccineDetailModal } from "./components/common/VaccineDetailModal";
 import { OnboardingModal } from "./components/onboarding/OnboardingModal";
 import { DashboardTab } from "./components/dashboard/DashboardTab";
 import { ScheduleTab } from "./components/schedule/ScheduleTab";
-import { CostTab } from "./components/cost/CostTab";
-import { InsuranceTab } from "./components/insurance/InsuranceTab";
+import { KeuanganTab } from "./components/keuangan/KeuanganTab";
 import { VaccineInfoTab } from "./components/vaccines/VaccineInfoTab";
 import { SettingsTab } from "./components/settings/SettingsTab";
 import { RecordModal } from "./components/schedule/RecordModal";
 import { PWANotification } from "./components/common/PWANotification";
+import { AuthScreen } from "./components/auth/AuthScreen";
 import { calculateDueDate, formatIndonesianDate } from "./utils/dates";
+import { useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider, useToast } from "./components/common/Toast";
+import { saveStateToCloud, subscribeToCloudState } from "./services/firebase";
 
-export default function App() {
-  const [loading, setLoading] = useState(true);
+function MainApp() {
+  const { user, loading: authLoading, isGuest, setCloudSyncStatus, markSynced } = useAuth();
+  const { showToast } = useToast();
   const [appState, setAppState] = useState<AppState>(getInitialState);
   const [activeTab, setActiveTab] = useState<TabId>("beranda");
+  const isSyncingFromCloudRef = useRef(false);
 
   // Global modals
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalMode, setProfileModalMode] = useState<"list" | "add">("list");
   const [selectedVaccineRef, setSelectedVaccineRef] = useState<string | null>(null);
   const [recordModalRow, setRecordModalRow] = useState<ScheduleRow | null>(null);
 
-  // Initialize app state from localStorage
+  // Initialize app state from localStorage cache
   useEffect(() => {
     try {
       const saved = loadAppState();
       setAppState(saved);
-      // Ensure dark mode is permanently removed
-      document.documentElement.classList.remove("dark");
     } catch (e) {
-      console.error("Gagal memuat state awal:", e);
-    } finally {
-      // Brief smooth loading transition
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 120);
-      return () => clearTimeout(timer);
+      console.error("Gagal memuat state lokal:", e);
     }
   }, []);
 
-  // Save changes to localStorage whenever appState changes (after initial loading)
+  // Real-time Firestore sync listener when user is authenticated
   useEffect(() => {
-    if (!loading) {
-      saveAppState(appState);
+    if (!user) return;
+
+    const unsubscribe = subscribeToCloudState(
+      user.uid,
+      (cloudData) => {
+        if (cloudData && Array.isArray(cloudData.profiles) && cloudData.profiles.length > 0) {
+          isSyncingFromCloudRef.current = true;
+          setAppState(cloudData);
+          saveAppState(cloudData);
+          markSynced();
+        } else {
+          setCloudSyncStatus("syncing");
+          saveStateToCloud(user.uid, appState)
+            .then(() => markSynced())
+            .catch(() => setCloudSyncStatus("error"));
+        }
+      },
+      (error) => {
+        console.warn("Real-time listener note:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Auto-save local changes to Firestore and localStorage
+  useEffect(() => {
+    if (!user) return;
+
+    if (isSyncingFromCloudRef.current) {
+      isSyncingFromCloudRef.current = false;
+      return;
     }
-  }, [appState, loading]);
+
+    saveAppState(appState);
+    setCloudSyncStatus("syncing");
+
+    const timer = setTimeout(() => {
+      saveStateToCloud(user.uid, appState)
+        .then(() => markSynced())
+        .catch((err) => {
+          console.error("Auto cloud sync error:", err);
+          setCloudSyncStatus("error");
+        });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [appState, user?.uid, setCloudSyncStatus, markSynced]);
 
   // Active profile
   const activeProfile = useMemo(() => {
@@ -65,6 +108,15 @@ export default function App() {
     const found = appState.profiles.find((p) => p.id === appState.activeProfileId);
     return found || appState.profiles[0] || null;
   }, [appState.profiles, appState.activeProfileId]);
+
+  const paymentMode = appState.paymentMode || "HYBRID";
+
+  const handleUpdatePaymentMode = useCallback((mode: PaymentMode) => {
+    setAppState((prev) => ({
+      ...prev,
+      paymentMode: mode
+    }));
+  }, []);
 
   // Profile operations
   const handleSelectProfile = useCallback((id: string) => {
@@ -89,21 +141,18 @@ export default function App() {
     }));
   }, []);
 
-  // Critical Fix: Delete Profile functionality
   const handleDeleteProfile = useCallback((id: string) => {
     setAppState((prev) => {
       const remaining = prev.profiles.filter((p) => p.id !== id);
       let nextActiveId = "";
 
       if (remaining.length > 0) {
-        // If the deleted profile was the active one, pick the next available
         if (prev.activeProfileId === id) {
           nextActiveId = remaining[0].id;
         } else {
           nextActiveId = prev.activeProfileId;
         }
       } else {
-        // If it was the only profile left, clear activeProfileId
         nextActiveId = "";
       }
 
@@ -113,162 +162,173 @@ export default function App() {
         activeProfileId: nextActiveId
       };
 
-      // Ensure immediate sync to localStorage
       saveAppState(newState);
       return newState;
     });
   }, []);
 
-  // Schedule row update for active profile
   const handleUpdateScheduleRow = useCallback((updatedRow: ScheduleRow) => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          return {
-            ...p,
-            schedule: p.schedule.map((r) => (r.id === updatedRow.id ? updatedRow : r))
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        return {
+          ...p,
+          schedule: p.schedule.map((r) => (r.id === updatedRow.id ? updatedRow : r))
+        };
+      })
+    }));
   }, []);
 
-  // Add custom row for active profile
   const handleAddCustomRow = useCallback((newRow: ScheduleRow) => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          return {
-            ...p,
-            schedule: [...p.schedule, newRow]
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        return {
+          ...p,
+          schedule: [...p.schedule, newRow]
+        };
+      })
+    }));
   }, []);
 
-  // Delete custom row for active profile
   const handleDeleteCustomRow = useCallback((rowId: string) => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          return {
-            ...p,
-            schedule: p.schedule.filter((r) => r.id !== rowId),
-            records: p.records.filter((rec) => rec.rowId !== rowId)
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        return {
+          ...p,
+          schedule: p.schedule.filter((r) => r.id !== rowId),
+          records: p.records.filter((rec) => rec.rowId !== rowId)
+        };
+      })
+    }));
   }, []);
 
-  // Reset schedule to seed for active profile
   const handleResetSchedule = useCallback(() => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          return {
-            ...p,
-            schedule: JSON.parse(JSON.stringify(SEED_SCHEDULE))
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        return {
+          ...p,
+          schedule: JSON.parse(JSON.stringify(SEED_SCHEDULE))
+        };
+      })
+    }));
   }, []);
 
-  // Update vaccine administration record for active profile
+  // Update vaccine administration record
   const handleUpdateRecord = useCallback((updatedRec: Record) => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          const exists = p.records.some((r) => r.rowId === updatedRec.rowId);
-          const newRecords = exists
-            ? p.records.map((r) => (r.rowId === updatedRec.rowId ? updatedRec : r))
-            : [...p.records, updatedRec];
-          return {
-            ...p,
-            records: newRecords
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        const exists = p.records.some((r) => r.rowId === updatedRec.rowId);
+        const newRecords = exists
+          ? p.records.map((r) => (r.rowId === updatedRec.rowId ? updatedRec : r))
+          : [...p.records, updatedRec];
+        return {
+          ...p,
+          records: newRecords
+        };
+      })
+    }));
   }, []);
 
-  // Quick mark vaccine as given
+  // Quick mark vaccine as given with UNDO toast support (Section 6.1 & 8)
   const handleQuickMarkGiven = useCallback((row: ScheduleRow) => {
     if (!activeProfile) return;
-    const existing = activeProfile.records.find((r) => r.rowId === row.id);
+    const previousRecord = activeProfile.records.find((r) => r.rowId === row.id);
     const todayStr = new Date().toISOString().split("T")[0];
-    const rec: Record = {
-      ...(existing || { rowId: row.id }),
+
+    const newRecord: Record = {
+      ...(previousRecord || { rowId: row.id }),
       rowId: row.id,
       diberikan: true,
-      tanggalDiberikan: existing?.tanggalDiberikan || todayStr,
-      tempat: existing?.tempat || (row.gratis === "Ya" ? "Puskesmas" : "Klinik"),
-      biayaAktual: existing?.biayaAktual !== undefined ? existing.biayaAktual : row.gratis === "Ya" ? 0 : row.min
+      tanggalDiberikan: previousRecord?.tanggalDiberikan || todayStr,
+      tempat: previousRecord?.tempat || (row.gratis === "Ya" ? "Puskesmas" : "Klinik"),
+      biayaAktual: previousRecord?.biayaAktual !== undefined ? previousRecord.biayaAktual : row.gratis === "Ya" ? 0 : row.min
     };
-    handleUpdateRecord(rec);
-  }, [activeProfile, handleUpdateRecord]);
 
-  // Update insurance policy for active profile
+    handleUpdateRecord(newRecord);
+
+    // Show undo toast per Section 6.1
+    showToast(
+      `Ditandai selesai: ${row.vaksin}.`,
+      "Urungkan",
+      () => {
+        if (previousRecord) {
+          handleUpdateRecord(previousRecord);
+        } else {
+          // Revert to unrecorded
+          setAppState((prev) => ({
+            ...prev,
+            profiles: prev.profiles.map((p) => {
+              if (p.id !== prev.activeProfileId) return p;
+              return {
+                ...p,
+                records: p.records.filter((r) => r.rowId !== row.id)
+              };
+            })
+          }));
+        }
+      }
+    );
+  }, [activeProfile, handleUpdateRecord, showToast]);
+
   const handleUpdateInsurance = useCallback((updatedInsurance: Insurance) => {
-    setAppState((prev) => {
-      return {
-        ...prev,
-        profiles: prev.profiles.map((p) => {
-          if (p.id !== prev.activeProfileId) return p;
-          return {
-            ...p,
-            insurance: updatedInsurance
-          };
-        })
-      };
-    });
+    setAppState((prev) => ({
+      ...prev,
+      profiles: prev.profiles.map((p) => {
+        if (p.id !== prev.activeProfileId) return p;
+        return {
+          ...p,
+          insurance: updatedInsurance
+        };
+      })
+    }));
   }, []);
 
-  // Clear all data
   const handleClearAllData = useCallback(() => {
     clearAllData();
     const fresh = getInitialState();
     saveAppState(fresh);
     setAppState(fresh);
+    if (user) {
+      saveStateToCloud(user.uid, fresh).catch(() => {});
+    }
     setActiveTab("beranda");
-  }, []);
+  }, [user]);
 
-  // Restore imported state
-  const handleRestoreState = useCallback((newState: AppState) => {
-    saveAppState(newState);
-    setAppState(newState);
-  }, []);
-
-  if (loading) {
+  // Loading skeleton matching final layout
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-[#1F4E78] to-teal-500 text-white flex items-center justify-center animate-bounce shadow-xl shadow-blue-900/20">
-          <span className="font-extrabold text-2xl">💉</span>
-        </div>
-        <p className="mt-4 text-sm font-bold text-slate-700">
-          Menyiapkan Pemantau Imunisasi...
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <p className="mt-4 text-[14px] text-text-2">
+          Menyiapkan aplikasi...
         </p>
       </div>
     );
   }
 
-  // If no profiles left (e.g. after user deleted the last profile), render Onboarding
+  // Auth gate
+  if (!user && !isGuest) {
+    return (
+      <ErrorBoundary>
+        <AuthScreen />
+      </ErrorBoundary>
+    );
+  }
+
+  // Onboarding if no profile
   if (!activeProfile || appState.profiles.length === 0) {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-bg flex items-center justify-center p-4">
           <OnboardingModal
             isOpen={true}
             onComplete={(profile) => {
@@ -282,32 +342,38 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 text-slate-800 transition-colors flex flex-col font-sans">
+      <div className="min-h-screen bg-bg text-text transition-colors flex flex-col font-sans">
         {/* Top Header */}
         <Header
           profile={activeProfile}
           profiles={appState.profiles}
           onSelectProfile={handleSelectProfile}
-          onOpenProfileModal={() => setProfileModalOpen(true)}
+          onOpenProfileModal={() => {
+            setProfileModalMode("list");
+            setProfileModalOpen(true);
+          }}
+          onOpenAddChild={() => {
+            setProfileModalMode("add");
+            setProfileModalOpen(true);
+          }}
           onNavigateToSettings={() => setActiveTab("pengaturan")}
           isSettingsActive={activeTab === "pengaturan"}
         />
 
-        {/* Main Layout Area */}
-        <div className="flex-1 max-w-7xl w-full mx-auto flex">
+        {/* Main Content Layout */}
+        <div className="flex-1 max-w-[960px] w-full mx-auto flex px-4 sm:px-6">
           {/* Desktop Left Sidebar */}
           <DesktopSidebar
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            profile={activeProfile}
-            onOpenProfileModal={() => setProfileModalOpen(true)}
           />
 
-          {/* Main Content View with generous bottom padding for mobile bottom nav */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 pb-32 md:pb-12">
+          {/* Main Content View */}
+          <main className="flex-1 py-6 md:pl-8 min-w-0 pb-28 md:pb-12">
             {activeTab === "beranda" && (
               <DashboardTab
                 profile={activeProfile}
+                paymentMode={paymentMode}
                 onOpenProfileModal={() => setProfileModalOpen(true)}
                 onOpenRecordModal={(row) => setRecordModalRow(row)}
                 onOpenVaccineDetail={(ref) => setSelectedVaccineRef(ref)}
@@ -319,6 +385,8 @@ export default function App() {
             {activeTab === "jadwal" && (
               <ScheduleTab
                 profile={activeProfile}
+                paymentMode={paymentMode}
+                onUpdatePaymentMode={handleUpdatePaymentMode}
                 onUpdateScheduleRow={handleUpdateScheduleRow}
                 onUpdateRecord={handleUpdateRecord}
                 onAddCustomRow={handleAddCustomRow}
@@ -328,11 +396,11 @@ export default function App() {
               />
             )}
 
-            {activeTab === "biaya" && <CostTab profile={activeProfile} />}
-
-            {activeTab === "asuransi" && (
-              <InsuranceTab
+            {(activeTab === "keuangan" || activeTab === "biaya" || activeTab === "asuransi") && (
+              <KeuanganTab
                 profile={activeProfile}
+                paymentMode={paymentMode}
+                onUpdatePaymentMode={handleUpdatePaymentMode}
                 onUpdateInsurance={handleUpdateInsurance}
                 onOpenRecordModal={(row) => setRecordModalRow(row)}
               />
@@ -344,22 +412,21 @@ export default function App() {
               <SettingsTab
                 appState={appState}
                 activeProfile={activeProfile}
-                onRestoreState={handleRestoreState}
                 onClearAllData={handleClearAllData}
               />
             )}
 
-            {/* Permanent Medical Disclaimer in Footer */}
             <Footer />
           </main>
         </div>
 
-        {/* Mobile Bottom Navigation Bar (iOS safe-area aware) */}
+        {/* Mobile Bottom Navigation */}
         <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
         {/* Global Modals */}
         <ProfileModal
           isOpen={profileModalOpen}
+          initialMode={profileModalMode}
           onClose={() => setProfileModalOpen(false)}
           profiles={appState.profiles}
           activeProfileId={appState.activeProfileId}
@@ -387,13 +454,23 @@ export default function App() {
             onSave={(rec) => {
               handleUpdateRecord(rec);
               setRecordModalRow(null);
+              showToast(`Tersimpan: ${recordModalRow.vaksin}`);
             }}
           />
         )}
 
-        {/* PWA Offline Ready & Update Toast Notification */}
         <PWANotification />
       </div>
     </ErrorBoundary>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <MainApp />
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

@@ -290,7 +290,7 @@ export function createSampleProfile(): Profile {
   const sampleBirthDate = new Date(now.getFullYear(), now.getMonth() - 6, 15);
   const birthStr = sampleBirthDate.toISOString().split("T")[0];
 
-  const profile = createNewProfile("sample-1", "Alif", birthStr, "Profil contoh (lahir 6 bulan lalu)");
+  const profile = createNewProfile("sample-1", "GrowBang", birthStr, "Profil contoh (lahir 6 bulan lalu)");
   
   // Mark a few initial vaccines as given to make the sample lively
   profile.records = [
