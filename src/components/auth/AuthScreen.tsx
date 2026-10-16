@@ -1,13 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { formatAuthErrorMessage } from "../../services/firebase";
+import {
+  AUTH_ENABLE_SIGNUP,
+  AUTH_ENABLE_GOOGLE,
+  AUTH_ENABLE_GUEST,
+  AUTH_ALLOW_EMAIL_LOGIN
+} from "../../config/app";
+import { validateUsername, formatLoginErrorMessage } from "../../utils/loginIdentity";
 
 export const AuthScreen: React.FC = () => {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail, continueAsGuest } = useAuth();
+  const { signInWithGoogle, signInWithUsername, signUpWithEmail, continueAsGuest } = useAuth();
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register">(AUTH_ENABLE_SIGNUP ? "login" : "login");
   const [displayName, setDisplayName] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,7 +25,10 @@ export const AuthScreen: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCredentialError, setIsCredentialError] = useState(false);
 
+  const passwordRef = useRef<HTMLInputElement>(null);
+
   const handleGoogleSignIn = async () => {
+    if (!AUTH_ENABLE_GOOGLE) return;
     setErrorMessage(null);
     setIsCredentialError(false);
     setGoogleLoading(true);
@@ -26,7 +36,7 @@ export const AuthScreen: React.FC = () => {
       await signInWithGoogle();
     } catch (err: any) {
       if (err?.code !== "auth/popup-closed-by-user") {
-        setErrorMessage(formatAuthErrorMessage(err));
+        setErrorMessage(formatLoginErrorMessage(err, AUTH_ENABLE_SIGNUP));
       }
     } finally {
       setGoogleLoading(false);
@@ -35,21 +45,65 @@ export const AuthScreen: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || googleLoading) return;
     setErrorMessage(null);
     setIsCredentialError(false);
 
-    const cleanEmail = email.trim();
-    if (!cleanEmail) {
-      setErrorMessage("Silakan masukkan alamat email Anda.");
-      return;
-    }
+    if (mode === "login") {
+      const cleanIdent = identifier.trim();
+      const valErr = validateUsername(cleanIdent);
+      if (AUTH_ALLOW_EMAIL_LOGIN && cleanIdent.includes("@")) {
+        // If email login is allowed and it contains @, validate email format roughly
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanIdent)) {
+          setErrorMessage("Format email tidak valid.");
+          return;
+        }
+      } else if (!AUTH_ALLOW_EMAIL_LOGIN && valErr) {
+        setErrorMessage(valErr);
+        return;
+      } else if (AUTH_ALLOW_EMAIL_LOGIN && !cleanIdent.includes("@") && valErr) {
+        setErrorMessage(valErr);
+        return;
+      }
 
-    if (!password) {
-      setErrorMessage("Silakan masukkan kata sandi Anda.");
-      return;
-    }
+      if (!password) {
+        setErrorMessage("Silakan masukkan kata sandi Anda.");
+        return;
+      }
 
-    if (mode === "register") {
+      setLoading(true);
+      try {
+        await signInWithUsername(cleanIdent, password);
+      } catch (err: any) {
+        const code = err?.code || "";
+        if (
+          code === "auth/invalid-credential" ||
+          code === "auth/user-not-found" ||
+          code === "auth/wrong-password" ||
+          code === "auth/invalid-email"
+        ) {
+          setIsCredentialError(true);
+          setPassword("");
+          if (passwordRef.current) {
+            passwordRef.current.focus();
+          }
+        }
+        setErrorMessage(formatLoginErrorMessage(err, AUTH_ENABLE_SIGNUP));
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Register mode (only when AUTH_ENABLE_SIGNUP is true)
+      const cleanEmail = email.trim();
+      if (!cleanEmail) {
+        setErrorMessage("Silakan masukkan alamat email Anda.");
+        return;
+      }
+      if (!password) {
+        setErrorMessage("Silakan masukkan kata sandi Anda.");
+        return;
+      }
       if (!displayName.trim()) {
         setErrorMessage("Silakan masukkan nama lengkap atau panggilan Anda.");
         return;
@@ -62,31 +116,30 @@ export const AuthScreen: React.FC = () => {
         setErrorMessage("Konfirmasi kata sandi tidak cocok. Mohon periksa kembali.");
         return;
       }
-    }
 
-    setLoading(true);
-    try {
-      if (mode === "login") {
-        await signInWithEmail(cleanEmail, password);
-      } else {
+      setLoading(true);
+      try {
         await signUpWithEmail(cleanEmail, password, displayName.trim());
+      } catch (err: any) {
+        const code = err?.code || "";
+        if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") {
+          setIsCredentialError(true);
+        }
+        setErrorMessage(formatLoginErrorMessage(err, AUTH_ENABLE_SIGNUP));
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      const code = err?.code || "";
-      if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") {
-        setIsCredentialError(true);
-      }
-      setErrorMessage(formatAuthErrorMessage(err));
-    } finally {
-      setLoading(false);
     }
   };
 
   const switchToRegisterWithEmail = () => {
+    if (!AUTH_ENABLE_SIGNUP) return;
     setMode("register");
     setErrorMessage(null);
     setIsCredentialError(false);
   };
+
+  const effectiveMode = AUTH_ENABLE_SIGNUP ? mode : "login";
 
   return (
     <div className="min-h-screen bg-bg flex flex-col justify-center items-center p-4 sm:p-6 font-sans">
@@ -103,81 +156,99 @@ export const AuthScreen: React.FC = () => {
 
         {/* Auth Card */}
         <div className="bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.06)] p-6 sm:p-7 space-y-5">
-          {/* Toggle Login / Register */}
-          <div className="flex bg-surface-sunken p-1 rounded-[10px]">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setErrorMessage(null);
-                setIsCredentialError(false);
-              }}
-              className={`flex-1 py-2 text-[14px] rounded-[8px] transition cursor-pointer ${
-                mode === "login"
-                  ? "bg-surface text-text font-medium border border-border shadow-xs"
-                  : "text-text-2 hover:text-text"
-              }`}
-            >
-              Masuk
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("register");
-                setErrorMessage(null);
-                setIsCredentialError(false);
-              }}
-              className={`flex-1 py-2 text-[14px] rounded-[8px] transition cursor-pointer ${
-                mode === "register"
-                  ? "bg-surface text-text font-medium border border-border shadow-xs"
-                  : "text-text-2 hover:text-text"
-              }`}
-            >
-              Daftar
-            </button>
-          </div>
+          {/* Toggle Login / Register (Only when AUTH_ENABLE_SIGNUP is true) */}
+          {AUTH_ENABLE_SIGNUP && (
+            <div className="flex bg-surface-sunken p-1 rounded-[10px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setErrorMessage(null);
+                  setIsCredentialError(false);
+                }}
+                className={`flex-1 py-2 text-[14px] rounded-[8px] transition cursor-pointer ${
+                  effectiveMode === "login"
+                    ? "bg-surface text-text font-medium border border-border shadow-xs"
+                    : "text-text-2 hover:text-text"
+                }`}
+              >
+                Masuk
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setErrorMessage(null);
+                  setIsCredentialError(false);
+                }}
+                className={`flex-1 py-2 text-[14px] rounded-[8px] transition cursor-pointer ${
+                  effectiveMode === "register"
+                    ? "bg-surface text-text font-medium border border-border shadow-xs"
+                    : "text-text-2 hover:text-text"
+                }`}
+              >
+                Daftar
+              </button>
+            </div>
+          )}
 
-          {/* Google Sign In Button */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
-            className="w-full py-2.5 px-4 bg-surface hover:bg-surface-sunken text-text border border-border-strong rounded-[10px] text-[14px] font-medium flex items-center justify-center gap-2.5 transition min-h-[44px] cursor-pointer"
-          >
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-              />
-            </svg>
-            <span>{googleLoading ? "Menghubungkan..." : "Lanjutkan dengan Google"}</span>
-          </button>
+          {!AUTH_ENABLE_SIGNUP && (
+            <div className="space-y-1 text-center pb-1">
+              <h2 className="text-[18px] font-semibold text-text">Masuk</h2>
+              <p className="text-[13px] text-text-2">
+                Aplikasi ini hanya untuk penggunaan pribadi keluarga.
+              </p>
+            </div>
+          )}
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[12px] text-text-3">atau dengan email</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
+          {/* Google Sign In Button (Only when AUTH_ENABLE_GOOGLE is true) */}
+          {AUTH_ENABLE_GOOGLE && (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleLoading || loading}
+                className="w-full py-2.5 px-4 bg-surface hover:bg-surface-sunken text-text border border-border-strong rounded-[10px] text-[14px] font-medium flex items-center justify-center gap-2.5 transition min-h-[44px] cursor-pointer"
+              >
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                  />
+                </svg>
+                <span>{googleLoading ? "Menghubungkan..." : "Lanjutkan dengan Google"}</span>
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[12px] text-text-3">atau dengan email</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            </>
+          )}
 
           {errorMessage && (
-            <div className="p-3 bg-danger-tint border border-danger/20 text-danger rounded-[10px] text-[13px] space-y-2">
+            <div
+              role="alert"
+              className="p-3 bg-danger-tint border border-danger/20 text-danger rounded-[10px] text-[13px] space-y-2"
+            >
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
-              {isCredentialError && mode === "login" && (
+              {isCredentialError && effectiveMode === "login" && AUTH_ENABLE_SIGNUP && (
                 <div className="pt-1 border-t border-danger/15 flex items-center justify-between">
                   <span className="text-[12px] text-danger/90">Belum pernah mendaftar?</span>
                   <button
@@ -194,7 +265,7 @@ export const AuthScreen: React.FC = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            {mode === "register" && (
+            {effectiveMode === "register" && AUTH_ENABLE_SIGNUP && (
               <div className="space-y-1">
                 <label className="text-[13px] font-medium text-text">
                   Nama lengkap / panggilan
@@ -213,28 +284,57 @@ export const AuthScreen: React.FC = () => {
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="text-[13px] font-medium text-text">Email</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-text-2 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="nama@email.com"
-                  className="w-full pl-9 pr-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
-                />
+            {effectiveMode === "login" ? (
+              <div className="space-y-1">
+                <label htmlFor="auth-identifier" className="text-[13px] font-medium text-text">
+                  {AUTH_ALLOW_EMAIL_LOGIN ? "Username atau email" : "Username"}
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 text-text-2 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="auth-identifier"
+                    type="text"
+                    required
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder={AUTH_ALLOW_EMAIL_LOGIN ? "username atau email" : "username"}
+                    className="w-full pl-9 pr-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-1">
+                <label htmlFor="auth-email" className="text-[13px] font-medium text-text">Email</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-text-2 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="auth-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nama@email.com"
+                    className="w-full pl-9 pr-3 py-2 text-[15px] rounded-[10px] border border-border-strong bg-surface text-text min-h-[44px]"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1">
-              <label className="text-[13px] font-medium text-text">Kata sandi</label>
+              <label htmlFor="auth-password" className="text-[13px] font-medium text-text">Kata sandi</label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-text-2 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  id="auth-password"
+                  ref={passwordRef}
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimal 6 karakter"
@@ -243,23 +343,26 @@ export const AuthScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-2 hover:text-text p-1 cursor-pointer"
+                  aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-2 hover:text-text p-1 cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {mode === "register" && (
+            {effectiveMode === "register" && AUTH_ENABLE_SIGNUP && (
               <div className="space-y-1">
-                <label className="text-[13px] font-medium text-text">
+                <label htmlFor="auth-confirm-password" className="text-[13px] font-medium text-text">
                   Konfirmasi kata sandi
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-text-2 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
+                    id="auth-confirm-password"
                     type={showPassword ? "text" : "password"}
                     required
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Ulangi kata sandi"
@@ -276,26 +379,28 @@ export const AuthScreen: React.FC = () => {
             >
               {loading
                 ? "Memproses..."
-                : mode === "login"
-                ? "Masuk ke akun"
+                : effectiveMode === "login"
+                ? "Masuk"
                 : "Buat akun baru"}
             </button>
           </form>
 
-          {/* Guest / Offline Mode Entry */}
-          <div className="pt-2 border-t border-border text-center space-y-2">
-            <button
-              type="button"
-              onClick={continueAsGuest}
-              className="w-full py-2.5 px-3 rounded-[10px] bg-surface-sunken hover:bg-border/60 text-text text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span>Lanjutkan sebagai Tamu (Mode Demo Offline)</span>
-            </button>
-            <p className="text-[11px] text-text-3">
-              Data tetap tersimpan di browser Anda tanpa perlu mendaftar akun.
-            </p>
-          </div>
+          {/* Guest / Offline Mode Entry (Only when AUTH_ENABLE_GUEST is true) */}
+          {AUTH_ENABLE_GUEST && (
+            <div className="pt-2 border-t border-border text-center space-y-2">
+              <button
+                type="button"
+                onClick={continueAsGuest}
+                className="w-full py-2.5 px-3 rounded-[10px] bg-surface-sunken hover:bg-border/60 text-text text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span>Lanjutkan sebagai Tamu (Mode Demo Offline)</span>
+              </button>
+              <p className="text-[11px] text-text-3">
+                Data tetap tersimpan di browser Anda tanpa perlu mendaftar akun.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

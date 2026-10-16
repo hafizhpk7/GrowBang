@@ -1,16 +1,21 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { collection, query, onSnapshot } from "firebase/firestore";
+import { db } from "../../../services/firebase";
 import { SEED_SCHEDULE } from "../../../data/seed";
 import { AppState, Insurance, PaymentMode, Profile, Record, ScheduleRow } from "../../../types";
 import { clearAllData as clearStorageData, getInitialState, loadAppState, saveAppState } from "../../../utils/storage";
 import { useAuth } from "../../../context/AuthContext";
+import { useFamily } from "../../../shell/family/context/FamilyContext";
 import { useToast } from "../../../components/common/Toast";
 import { saveStateToCloud, subscribeToCloudState } from "../../../services/firebase";
 
 export function useBayiState(onNavigateToBabyHome?: () => void) {
   const { user, setCloudSyncStatus, markSynced } = useAuth();
+  const { status: familyStatus, family } = useFamily();
   const { showToast } = useToast();
   const [appState, setAppState] = useState<AppState>(getInitialState);
   const isSyncingFromCloudRef = useRef(false);
+  const isFamilyMode = familyStatus === 'active' && family;
 
   // Initialize app state from localStorage cache
   useEffect(() => {
@@ -26,28 +31,37 @@ export function useBayiState(onNavigateToBabyHome?: () => void) {
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribe = subscribeToCloudState(
-      user.uid,
-      (cloudData) => {
-        if (cloudData && Array.isArray(cloudData.profiles) && cloudData.profiles.length > 0) {
-          isSyncingFromCloudRef.current = true;
-          setAppState(cloudData);
-          saveAppState(cloudData);
-          markSynced();
-        } else {
-          setCloudSyncStatus("syncing");
-          saveStateToCloud(user.uid, appState)
-            .then(() => markSynced())
-            .catch(() => setCloudSyncStatus("error"));
+    if (isFamilyMode) {
+      // Family Mode listener
+      const q = query(collection(db, 'families', family!.id, 'babies'));
+      return onSnapshot(q, (snapshot) => {
+        const profiles: Profile[] = snapshot.docs.map(doc => doc.data() as Profile);
+        setAppState(prev => ({ ...prev, profiles }));
+        saveAppState({ ...appState, profiles }); // partial save
+      });
+    } else {
+      // Legacy listener
+      return subscribeToCloudState(
+        user.uid,
+        (cloudData) => {
+          if (cloudData && Array.isArray(cloudData.profiles) && cloudData.profiles.length > 0) {
+            isSyncingFromCloudRef.current = true;
+            setAppState(cloudData);
+            saveAppState(cloudData);
+            markSynced();
+          } else {
+            setCloudSyncStatus("syncing");
+            saveStateToCloud(user.uid, appState)
+              .then(() => markSynced())
+              .catch(() => setCloudSyncStatus("error"));
+          }
+        },
+        (error) => {
+          console.warn("Real-time listener note:", error);
         }
-      },
-      (error) => {
-        console.warn("Real-time listener note:", error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user?.uid]);
+      );
+    }
+  }, [user?.uid, isFamilyMode, family?.id]);
 
   // Auto-save local changes to Firestore and localStorage
   useEffect(() => {

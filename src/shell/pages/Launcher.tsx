@@ -4,6 +4,8 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import { ShellHeader } from "../components/ShellHeader";
 import { MODULE_REGISTRY } from "../../modules/registry";
 import { useAuth } from "../../context/AuthContext";
+import { PAGE_CONTAINER } from "../../config/layout";
+import { getAccountName } from "../../utils/loginIdentity";
 
 
 export const LauncherPage: React.FC = () => {
@@ -11,15 +13,13 @@ export const LauncherPage: React.FC = () => {
 
   const greetingName = isGuest
     ? "Tamu"
-    : user?.displayName
-    ? user.displayName.split(" ")[0]
-    : "Orang Tua";
+    : getAccountName(user).split(" ")[0] || "Orang Tua";
 
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col transition-colors">
       <ShellHeader />
 
-      <main className="flex-1 max-w-[960px] w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+      <main className={`flex-1 ${PAGE_CONTAINER} py-8 sm:py-12 space-y-8`}>
         {/* Greeting Section */}
         <div className="space-y-2">
           <h1 className="text-[28px] sm:text-[36px] font-semibold leading-tight text-text tracking-tight">
@@ -31,7 +31,7 @@ export const LauncherPage: React.FC = () => {
         </div>
 
         {/* Module Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
           {MODULE_REGISTRY.map((mod) => {
             const Icon = mod.icon;
             const isComingSoon = mod.status === "coming-soon";

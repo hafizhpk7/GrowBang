@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 import { SEED_VACCINE_INFO } from "../../../data/seed";
 import { Profile, VaccineInfo } from "../../../types";
 import { CategoryTag, StatusBadge } from "../../../components/common/Badges";
+import { READING_MAX } from "../../../config/layout";
 
 interface Props {
   profile: Profile;
@@ -42,7 +43,7 @@ export const VaccineInfoTab: React.FC<Props> = ({ profile }) => {
   }, [filterCategory, searchQuery]);
 
   return (
-    <div className="space-y-6 animate-fadeIn max-w-[960px]">
+    <div className={`space-y-6 animate-fadeIn w-full ${READING_MAX}`}>
       {/* 1. Header */}
       <div>
         <h1 className="text-[28px] sm:text-[32px] font-medium leading-tight text-text">

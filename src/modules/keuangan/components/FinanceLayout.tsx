@@ -9,6 +9,7 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { TransactionModal } from "./TransactionModal";
+import { PAGE_CONTAINER } from "../../../config/layout";
 
 export const FinanceLayout: React.FC = () => {
   const location = useLocation();
@@ -87,21 +88,22 @@ export const FinanceLayout: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 max-w-[1040px] w-full mx-auto flex px-0 md:px-6">
-        {/* Desktop Sidebar */}
-        <aside className="w-64 shrink-0 hidden md:block bg-bg-sidebar border-r border-border p-4 min-h-[calc(100vh-4rem)] flex flex-col justify-between no-print transition-colors">
+      <div className="flex-1 w-full flex">
+        {/* Desktop Sidebar / Tablet Icon Rail */}
+        <aside className="w-[72px] lg:w-64 shrink-0 hidden md:flex flex-col justify-between bg-bg-sidebar border-r border-border p-2.5 lg:p-4 sticky top-0 self-start h-screen overflow-y-auto no-print transition-colors">
           <div className="space-y-4">
             <Link
               to="/"
-              className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-[13px] text-text-2 hover:text-text hover:bg-surface-sunken transition-colors font-medium border border-border/60 group"
-              title="Kembali ke launcher utama"
+              className="flex items-center justify-center lg:justify-start gap-2.5 px-2.5 lg:px-3 py-2 rounded-[10px] text-[13px] text-text-2 hover:text-text hover:bg-surface-sunken transition-colors font-medium border border-border/60 group"
+              title="Beranda utama"
+              aria-label="Beranda utama"
             >
               <LayoutGrid className="w-4 h-4 text-text-2 group-hover:text-primary transition-colors shrink-0" />
-              <span>Beranda utama</span>
+              <span className="hidden lg:inline">Beranda utama</span>
             </Link>
 
             <div className="pt-2 border-t border-border">
-              <p className="px-3 text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2">
+              <p className="hidden lg:block px-3 text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2">
                 Keuangan Keluarga
               </p>
               <nav className="space-y-1">
@@ -111,14 +113,16 @@ export const FinanceLayout: React.FC = () => {
                     <Link
                       key={item.id}
                       to={item.path}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[13px] font-medium transition cursor-pointer ${
+                      title={item.label}
+                      aria-label={item.label}
+                      className={`flex items-center justify-center lg:justify-start gap-2.5 px-2.5 lg:px-3 py-2.5 rounded-[10px] text-[13px] font-medium transition cursor-pointer ${
                         item.isActive
                           ? "bg-primary-tint text-primary-text border border-primary/20"
                           : "text-text-2 hover:text-text hover:bg-surface-sunken"
                       }`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
+                      <span className="hidden lg:inline">{item.label}</span>
                     </Link>
                   );
                 })}
@@ -131,18 +135,22 @@ export const FinanceLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(true)}
-                className="w-full py-2.5 px-3 rounded-[10px] bg-primary hover:bg-primary-hover text-primary-fg text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
+                title="Catat transaksi"
+                aria-label="Catat transaksi"
+                className="w-full py-2.5 px-2 lg:px-3 rounded-[10px] bg-primary hover:bg-primary-hover text-primary-fg text-[13px] font-medium transition cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
               >
-                <Plus className="w-4 h-4" />
-                <span>Catat transaksi</span>
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="hidden lg:inline">Catat transaksi</span>
               </button>
             </div>
           )}
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 p-4 sm:p-6 pb-24 md:pb-8 min-w-0">
-          <Outlet />
+        <main className="flex-1 min-w-0">
+          <div className={`${PAGE_CONTAINER} p-4 sm:p-6 pb-24 md:pb-8`}>
+            <Outlet />
+          </div>
         </main>
       </div>
 

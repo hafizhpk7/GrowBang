@@ -6,6 +6,8 @@ import { MODULE_REGISTRY } from "../../registry";
 import { MonthSelector } from "../components/MonthSelector";
 import { TransactionModal } from "../components/TransactionModal";
 import { useFinance } from "../state/FinanceContext";
+import { useFamily } from "../../../shell/family/context/FamilyContext";
+import { useAuth } from "../../../context/AuthContext";
 import { LedgerEntry, TxType } from "../types";
 import { getAllCategories, resolveCategoryName } from "../utils/categories";
 import { filterEntries, groupByDate, summarizeMonth } from "../utils/calculations";
@@ -13,9 +15,12 @@ import { formatDayHeader, monthKeyOf } from "../utils/dates";
 
 export const TransaksiPage: React.FC = () => {
   const { selectedMonth, setSelectedMonth, config, entries } = useFinance();
+  const { members } = useFamily();
+  const { user } = useAuth();
 
   const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [memberFilter, setMemberFilter] = useState<string>("all"); // "all", "me", or uid
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -31,7 +36,7 @@ export const TransaksiPage: React.FC = () => {
 
   // Apply search & dropdown filters
   const filteredList = useMemo(() => {
-    return filterEntries(
+    let list = filterEntries(
       monthEntries,
       {
         type: typeFilter,
@@ -40,7 +45,16 @@ export const TransaksiPage: React.FC = () => {
       },
       config
     );
-  }, [monthEntries, typeFilter, categoryFilter, searchQuery, config]);
+
+    if (memberFilter !== "all") {
+      list = list.filter(e => {
+        if (memberFilter === "me") return e.createdBy === user?.uid;
+        return e.createdBy === memberFilter;
+      });
+    }
+    
+    return list;
+  }, [monthEntries, typeFilter, categoryFilter, searchQuery, config, memberFilter, user?.uid]);
 
   // Group by date
   const groupedData = useMemo(() => {
@@ -101,6 +115,20 @@ export const TransaksiPage: React.FC = () => {
               {allCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.archived ? "(Diarsipkan)" : ""}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={memberFilter}
+              onChange={(e) => setMemberFilter(e.target.value)}
+              className="px-3 py-2 text-[13px] rounded-[10px] border border-border bg-surface text-text min-h-[40px]"
+            >
+              <option value="all">Semua Anggota</option>
+              <option value="me">Saya</option>
+              {members.map((m) => (
+                <option key={m.uid} value={m.uid}>
+                  {m.displayName}
                 </option>
               ))}
             </select>
@@ -168,6 +196,7 @@ export const TransaksiPage: React.FC = () => {
               <div className="divide-y divide-border">
                 {group.entries.map((entry) => {
                   const catName = resolveCategoryName(config, entry.categoryId);
+                  const creator = members.find((m: any) => m.uid === entry.createdBy)?.displayName || 'Unknown';
                   const isIncome = entry.type === "income";
 
                   return (
@@ -197,6 +226,7 @@ export const TransaksiPage: React.FC = () => {
                           <span className="text-[14px] font-medium text-text truncate">
                             {catName}
                           </span>
+                          <span className="text-[11px] text-text-3">Dicatat oleh {creator}</span>
                           {entry.source === "vaccine" && (
                             <span className="text-[11px] px-2 py-0.5 rounded-full bg-info-tint text-info font-medium border border-info/20 flex items-center gap-1">
                               <span>Dari jadwal vaksin</span>
@@ -210,7 +240,8 @@ export const TransaksiPage: React.FC = () => {
                                 <ExternalLink className="w-3 h-3" />
                               </Link>
                             </span>
-                          )}
+                          )
+                        }
                         </div>
                         {entry.note && (
                           <p className="text-[12px] text-text-2 truncate">{entry.note}</p>

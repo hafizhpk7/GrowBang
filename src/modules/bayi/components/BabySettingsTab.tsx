@@ -4,6 +4,7 @@ import { Trash2, ExternalLink, Download, Calendar, FileSpreadsheet, RotateCcw, S
 import { ASSUMPTIONS_AND_NOTES, OFFICIAL_SOURCES } from "../../../data/seed";
 import { useBayi } from "../context/BayiContext";
 import { exportToExcel, exportToIcs, downloadJsonBackup } from "../../../utils/export";
+import { READING_MAX } from "../../../config/layout";
 
 export const BabySettingsTab: React.FC = () => {
   const { appState, activeProfile, resetSchedule, clearAllBabyData } = useBayi();
@@ -24,7 +25,7 @@ export const BabySettingsTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn max-w-[960px]">
+    <div className={`space-y-8 animate-fadeIn w-full ${READING_MAX}`}>
       {/* 1. Header & Link to Global Settings */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
         <div>

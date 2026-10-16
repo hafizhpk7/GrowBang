@@ -135,7 +135,7 @@ export const KeuanganTab: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-7 animate-fadeIn max-w-[960px]">
+    <div className="space-y-7 animate-fadeIn w-full">
       {/* 1. Header */}
       <div>
         <h1 className="text-[28px] sm:text-[32px] font-semibold leading-tight text-text tracking-tight">

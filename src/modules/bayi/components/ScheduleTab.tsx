@@ -3,7 +3,6 @@ import {
   Search,
   Plus,
   RotateCcw,
-  Check,
   LayoutGrid,
   Table as TableIcon,
   X
@@ -14,6 +13,7 @@ import { formatRupiahRange, getVaccinePriceDisplay } from "../../../utils/calc";
 import { CategoryTag, StatusIndicator } from "../../../components/common/Badges";
 import { CustomRowModal } from "./CustomRowModal";
 import { PaymentModeSelector } from "./PaymentModeSelector";
+import { ScheduleCheckbox } from "./ScheduleCheckbox";
 
 interface Props {
   profile: Profile;
@@ -126,20 +126,20 @@ export const ScheduleTab: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn max-w-[960px]">
+    <div className="space-y-6 animate-fadeIn w-full">
       {/* 1. Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 sm:gap-4">
-        <div>
+      <div className="flex flex-col xl:flex-row xl:items-baseline justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1 min-w-[20rem]">
           <h1 className="text-[26px] sm:text-[32px] font-semibold leading-tight text-text tracking-tight">
             Jadwal imunisasi
           </h1>
-          <p className="text-[14px] sm:text-[15px] text-text-2 mt-1">
+          <p className="text-[14px] sm:text-[15px] text-text-2 mt-1 max-w-prose">
             Garis waktu kronologis imunisasi 0–5 tahun sesuai anjuran resmi IDAI & Kemenkes RI.
           </p>
         </div>
 
         {/* Action controls: wrap gracefully on 320px-430px */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Payment Mode Selector Badge */}
           <PaymentModeSelector
             paymentMode={paymentMode}
@@ -226,8 +226,8 @@ export const ScheduleTab: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Filter Chips: horizontally scrollable container without vertical wrapping */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+        {/* Filter Chips: horizontally scrollable container below lg, wraps at lg+ */}
+        <div className="flex items-center gap-2 overflow-x-auto lg:overflow-visible pb-1.5 pt-0.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 lg:mx-0 lg:px-0 lg:flex-wrap">
           {[
             { id: "all", label: "Semua" },
             { id: "program", label: "Imunisasi program" },
@@ -253,7 +253,7 @@ export const ScheduleTab: React.FC<Props> = ({
             );
           })}
 
-          <span className="text-border shrink-0">|</span>
+          <span className="text-border shrink-0 lg:hidden">|</span>
 
           {/* Year selector */}
           <button
@@ -286,7 +286,7 @@ export const ScheduleTab: React.FC<Props> = ({
 
       {/* 3. Schedule Content */}
       {displayedRows.length === 0 ? (
-        <div className="p-8 bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] text-center text-text-2 text-[14px]">
+        <div className="p-8 bg-surface rounded-[12px] border border-border shadow-card text-center text-text-2 text-[14px]">
           Tidak ada jadwal imunisasi yang cocok dengan filter atau pencarian Anda.
         </div>
       ) : viewMode === "timeline" ? (
@@ -318,7 +318,7 @@ export const ScheduleTab: React.FC<Props> = ({
                 </div>
 
                 {/* Rows as elevated card container */}
-                <div className="bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] divide-y divide-border overflow-hidden">
+                <div className="bg-surface rounded-[12px] border border-border shadow-card divide-y divide-border overflow-hidden">
                   {items.map((item) => {
                     const isDone = Boolean(item.record?.diberikan);
                     const priceInfo = getVaccinePriceDisplay(item.row, paymentMode);
@@ -326,67 +326,65 @@ export const ScheduleTab: React.FC<Props> = ({
                     return (
                       <div
                         key={item.row.id}
-                        className="p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 hover:bg-surface-sunken/40 transition-colors"
+                        className="grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2 items-start px-4 py-4 sm:px-5 hover:bg-surface-sunken/40 transition-colors"
                       >
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          {/* Checkbox (minimum 44px touch area) */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleGiven(item.row, isDone)}
-                            className={`w-6 h-6 rounded-[6px] border flex items-center justify-center shrink-0 mt-0.5 transition cursor-pointer min-h-[44px] min-w-[44px] -m-2.5 p-2.5 ${
-                              isDone
-                                ? "bg-primary border-primary text-primary-fg"
-                                : "border-border-strong hover:border-text bg-surface shadow-2xs"
-                            }`}
-                            aria-label={`Tandai ${item.row.vaksin} selesai`}
-                          >
-                            {isDone && <Check className="w-4 h-4 stroke-[2.5]" />}
-                          </button>
+                        {/* Column 1: Checkbox */}
+                        <ScheduleCheckbox
+                          size="md"
+                          checked={isDone}
+                          onToggle={() => handleToggleGiven(item.row, isDone)}
+                          label={`Tandai ${item.row.vaksin} selesai`}
+                        />
 
-                          <div className="space-y-1.5 min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => onOpenVaccineDetail(item.row.ref)}
-                                className={`text-sm sm:text-base font-semibold hover:text-primary hover:underline text-left cursor-pointer break-words leading-snug ${
-                                  isDone ? "text-text-2 line-through" : "text-text"
-                                }`}
-                              >
-                                {item.row.vaksin}
-                              </button>
-                              <CategoryTag gratis={item.row.gratis} />
-                            </div>
+                        {/* Column 2: Text block.
+                            Vertical alignment: checkbox height = 44px (center at 22px).
+                            Title line-height (leading-snug at text-base/16px) = 22px (center at 11px).
+                            Text block top padding = (44px - 22px) / 2 = 11px (pt-[11px]). */}
+                        <div className="space-y-1.5 min-w-0 pt-[11px]">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => onOpenVaccineDetail(item.row.ref)}
+                              className={`text-[15px] sm:text-base font-semibold leading-snug hover:text-primary hover:underline text-left cursor-pointer break-words ${
+                                isDone ? "text-text-2 line-through" : "text-text"
+                              }`}
+                            >
+                              {item.row.vaksin}
+                            </button>
+                            <CategoryTag gratis={item.row.gratis} />
+                          </div>
 
-                            <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-[12px] sm:text-[13px] text-text-2">
-                              <span className="font-medium text-text">Usia {item.row.usia}</span>
-                              <span className="text-text-3">·</span>
-                              <StatusIndicator status={item.status} />
-                              {item.dueDateStr && (
-                                <>
-                                  <span className="text-text-3">·</span>
-                                  <span className="font-medium">{item.dueDateStr}</span>
-                                </>
-                              )}
-                            </div>
-
-                            {item.row.catatan && (
-                              <p className="text-[12px] text-text-3 line-clamp-2 break-words leading-relaxed pt-0.5">
-                                {item.row.catatan}
-                              </p>
+                          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-[13px] text-text-2">
+                            <span className="font-medium text-text">Usia {item.row.usia}</span>
+                            <span className="text-text-2">·</span>
+                            <StatusIndicator status={item.status} />
+                            {item.dueDateStr && (
+                              <>
+                                <span className="text-text-2">·</span>
+                                <span className="font-medium">{item.dueDateStr}</span>
+                              </>
                             )}
                           </div>
+
+                          {item.row.catatan && (
+                            <p className="text-[12.5px] leading-relaxed text-text-2 line-clamp-2 lg:line-clamp-3 break-words pt-0.5">
+                              {item.row.catatan}
+                            </p>
+                          )}
                         </div>
 
-                        {/* Price estimate & Details button: Dedicated bottom row on mobile (max-sm), side-by-side on desktop (sm+) */}
-                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 mt-2.5 sm:mt-0 pt-2.5 sm:pt-0 border-t border-border/40 sm:border-t-0 pl-9 sm:pl-0">
+                        {/* Column 3 on sm+, Column 2 row 2 on mobile: Price & Info Detail */}
+                        <div className="col-start-2 sm:col-start-auto flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2.5 sm:pt-0 border-t border-border/40 sm:border-t-0 sm:min-w-[11rem] sm:text-right font-tabular">
                           <div className="text-left sm:text-right">
-                            <span className={`text-[13px] font-medium font-tabular block ${
-                              priceInfo.isFree ? "text-primary font-semibold" : "text-text"
-                            }`}>
+                            <span
+                              className={`text-[13px] font-medium font-tabular block ${
+                                priceInfo.isFree ? "text-primary font-semibold" : "text-text"
+                              }`}
+                            >
                               {priceInfo.text}
                             </span>
                             {priceInfo.warningNote && (
-                              <span className="inline-block text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 mt-0.5 font-medium">
+                              <span className="inline-block text-[10px] text-warning-text bg-warning-tint border border-warning/20 rounded px-1.5 py-0.5 mt-0.5 font-medium">
                                 {priceInfo.warningNote}
                               </span>
                             )}
@@ -410,35 +408,35 @@ export const ScheduleTab: React.FC<Props> = ({
         </div>
       ) : (
         /* Table View with robust structured layout and responsive overflow */
-        <div className="bg-surface rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] overflow-hidden">
+        <div className="bg-surface rounded-[12px] border border-border shadow-card overflow-hidden">
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left text-[14px] min-w-[760px] table-fixed border-collapse">
+            <table className="w-full text-left text-[14px] min-w-[720px] table-fixed border-collapse">
               <colgroup>
-                <col className="w-[155px]" />
-                <col className="min-w-[220px]" />
-                <col className="w-[100px]" />
-                <col className="w-[130px]" />
-                <col className="w-[160px]" />
-                <col className="w-[85px]" />
+                <col className="w-[168px]" />
+                <col className="min-w-[260px]" />
+                <col className="w-[96px]" />
+                <col className="w-[112px] hidden xl:table-column" />
+                <col className="w-[168px]" />
+                <col className="w-[88px]" />
               </colgroup>
-              <thead className="bg-[#F4EFEA]/80 dark:bg-surface-sunken/80 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+              <thead className="bg-surface-sunken border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
                 <tr>
-                  <th scope="col" className="py-3.5 px-4 text-left">
+                  <th scope="col" className="py-3 px-4 text-left">
                     Status
                   </th>
-                  <th scope="col" className="py-3.5 px-4 text-left">
+                  <th scope="col" className="py-3 px-4 text-left">
                     Vaksin
                   </th>
-                  <th scope="col" className="py-3.5 px-3 text-left">
+                  <th scope="col" className="py-3 px-4 text-left">
                     Usia
                   </th>
-                  <th scope="col" className="py-3.5 px-3 text-left">
+                  <th scope="col" className="py-3 px-4 text-left hidden xl:table-cell">
                     Kategori
                   </th>
-                  <th scope="col" className="py-3.5 px-3 text-left">
+                  <th scope="col" className="py-3 px-4 text-left">
                     Estimasi Biaya
                   </th>
-                  <th scope="col" className="py-3.5 px-4 text-right">
+                  <th scope="col" className="py-3 px-4 text-right">
                     Aksi
                   </th>
                 </tr>
@@ -461,73 +459,66 @@ export const ScheduleTab: React.FC<Props> = ({
                           isDone ? "bg-surface/50" : "bg-surface"
                         }`}
                       >
-                        {/* 1. Status Column: Checkbox + Status indicator aligned on starting axis */}
-                        <td className="py-3.5 px-4 align-top">
-                          <div className="flex items-center gap-2.5">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleGiven(item.row, isDone)}
-                              className={`w-5 h-5 rounded-[5px] border flex items-center justify-center shrink-0 cursor-pointer min-h-[36px] min-w-[36px] -m-2 p-2 transition ${
-                                isDone
-                                  ? "bg-primary border-primary text-primary-fg"
-                                  : "border-border-strong bg-surface hover:border-text"
-                              }`}
+                        {/* 1. Status Column: Checkbox + Status indicator aligned on middle axis */}
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex items-center gap-2">
+                            <ScheduleCheckbox
+                              size="sm"
+                              checked={isDone}
+                              onToggle={() => handleToggleGiven(item.row, isDone)}
+                              label={`Tandai status ${item.row.vaksin}`}
                               title={isDone ? "Tandai belum diberikan" : "Tandai sudah diberikan"}
-                              aria-label={`Tandai status ${item.row.vaksin}`}
-                            >
-                              <span
-                                className={`w-4 h-4 rounded-[4px] flex items-center justify-center ${
-                                  isDone ? "bg-primary text-primary-fg" : "border border-border-strong"
-                                }`}
-                              >
-                                {isDone && <Check className="w-3 h-3 stroke-[3]" />}
-                              </span>
-                            </button>
+                            />
                             <StatusIndicator status={item.status} />
                           </div>
                         </td>
 
-                        {/* 2. Vaccine Column: Bold title and secondary description tightly grouped flex-col */}
-                        <td className="py-3.5 px-4 align-top">
+                        {/* 2. Vaccine Column: Bold title, optional inline CategoryTag, and notes */}
+                        <td className="py-3 px-4 align-middle">
                           <div className="flex flex-col gap-1 pr-2">
-                            <button
-                              type="button"
-                              onClick={() => onOpenVaccineDetail(item.row.ref)}
-                              className={`font-semibold text-[14px] text-left hover:text-primary transition-colors cursor-pointer break-words leading-snug ${
-                                isDone ? "text-text-2 line-through" : "text-text"
-                              }`}
-                            >
-                              {item.row.vaksin}
-                            </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => onOpenVaccineDetail(item.row.ref)}
+                                className={`font-semibold text-[14px] text-left hover:text-primary transition-colors cursor-pointer break-words leading-snug ${
+                                  isDone ? "text-text-2 line-through" : "text-text"
+                                }`}
+                              >
+                                {item.row.vaksin}
+                              </button>
+                              <span className="xl:hidden">
+                                <CategoryTag gratis={item.row.gratis} />
+                              </span>
+                            </div>
                             {item.row.catatan ? (
-                              <p className="text-[12px] text-text-3 leading-relaxed break-words line-clamp-2">
+                              <p className="text-[12.5px] text-text-2 leading-relaxed break-words line-clamp-2">
                                 {item.row.catatan}
                               </p>
                             ) : null}
                           </div>
                         </td>
 
-                        {/* 3. Age Column: Pill-like timeframe badge */}
-                        <td className="py-3.5 px-3 align-top whitespace-nowrap">
+                        {/* 3. Age Column */}
+                        <td className="py-3 px-4 align-middle whitespace-nowrap">
                           <span className="inline-block px-2 py-0.5 rounded-[6px] text-[12px] font-medium bg-surface-sunken text-text border border-border">
                             {item.row.usia}
                           </span>
                         </td>
 
-                        {/* 4. Category Column: Tag inside its own designated column */}
-                        <td className="py-3.5 px-3 align-top whitespace-nowrap">
+                        {/* 4. Category Column (hidden below xl) */}
+                        <td className="py-3 px-4 align-middle whitespace-nowrap hidden xl:table-cell">
                           <CategoryTag gratis={item.row.gratis} />
                         </td>
 
                         {/* 5. Cost Column: Tabular price estimate */}
-                        <td className="py-3.5 px-3 align-top whitespace-nowrap font-tabular text-[13px] font-medium">
+                        <td className="py-3 px-4 align-middle whitespace-nowrap font-tabular text-[13px] font-medium">
                           {priceInfo.isFree ? (
                             <span className="text-primary font-semibold">{priceInfo.text}</span>
                           ) : (
                             <div>
                               <span className="text-text">{priceInfo.text}</span>
                               {priceInfo.warningNote && (
-                                <span className="block text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 mt-0.5 w-max font-medium">
+                                <span className="block text-[10px] text-warning-text bg-warning-tint border border-warning/20 rounded px-1.5 py-0.5 mt-0.5 w-max font-medium">
                                   {priceInfo.warningNote}
                                 </span>
                               )}
@@ -536,7 +527,7 @@ export const ScheduleTab: React.FC<Props> = ({
                         </td>
 
                         {/* 6. Action Column: Pinned strictly to the right */}
-                        <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                        <td className="py-3 px-4 align-middle text-right whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => onOpenVaccineDetail(item.row.ref)}
@@ -552,6 +543,9 @@ export const ScheduleTab: React.FC<Props> = ({
               </tbody>
             </table>
           </div>
+          <p className="lg:hidden text-[12px] text-text-2 mt-2 px-4 pb-3">
+            Geser ke samping untuk melihat kolom lainnya.
+          </p>
         </div>
       )}
 

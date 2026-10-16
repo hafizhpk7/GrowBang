@@ -21,6 +21,8 @@ import { SchedulePage } from "./modules/bayi/pages/SchedulePage";
 import { KeuanganPage } from "./modules/bayi/pages/KeuanganPage";
 import { VaccineInfoPage } from "./modules/bayi/pages/VaccineInfoPage";
 import { BabySettingsPage } from "./modules/bayi/pages/BabySettingsPage";
+import { FamilyPage } from "./shell/family/pages/FamilyPage";
+import { JoinFamilyPage } from "./shell/family/pages/JoinFamilyPage";
 
 function AppRoutes() {
   const { user, loading: authLoading, isGuest } = useAuth();
@@ -59,6 +61,9 @@ function AppRoutes() {
         <Route path="info-vaksin" element={<VaccineInfoPage />} />
         <Route path="pengaturan" element={<BabySettingsPage />} />
       </Route>
+
+      <Route path="/keluarga" element={<FamilyPage />} />
+      <Route path="/gabung" element={<JoinFamilyPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

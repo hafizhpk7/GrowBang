@@ -178,6 +178,13 @@ export class LocalRepository implements FinanceRepository {
     this.notifyConfigListeners();
   }
 
+  async updateBudget(categoryId: string, amount: number): Promise<void> {
+    const data = this.loadData();
+    data.config.budgets[categoryId] = amount;
+    this.saveData(data);
+    this.notifyConfigListeners();
+  }
+
   async deleteAllData(): Promise<void> {
     localStorage.removeItem(LOCAL_FINANCE_STORAGE_KEY);
     this.notifyTxListeners();

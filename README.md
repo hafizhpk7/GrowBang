@@ -25,6 +25,30 @@
 
 ---
 
+## 🔒 Akses Privat (Private Access Mode)
+
+Aplikasi ini dikonfigurasi untuk penggunaan privat keluarga dengan akun bersama. 
+
+### Konfigurasi & Feature Flags (`src/config/app.ts`)
+- `AUTH_ENABLE_SIGNUP`: Mengontrol visibilitas tab pendaftaran dan pembuatan akun (default: `false`).
+- `AUTH_ENABLE_GOOGLE`: Mengontrol visibilitas tombol masuk dengan Google (default: `false`).
+- `AUTH_ENABLE_GUEST`: Mengontrol visibilitas mode tamu / demo offline (default: `false`).
+- `LOGIN_EMAIL_DOMAIN`: Domain internal untuk pemetaan username (default: `growbang.app`).
+
+### Checklist Mode Privat
+1. Pengguna masuk menggunakan username (yang dipetakan secara internal ke `username@growbang.app`) dan kata sandi.
+2. Pendaftaran publik, tombol Google, dan mode tamu disembunyikan di antarmuka.
+3. Aturan keamanan Firestore (`firestore.rules`) membatasi akses baca/tulis hanya untuk akun yang terdaftar dalam allow-list privat.
+
+### Membuka ke Publik
+Untuk membuka kembali aplikasi ini ke publik di masa mendatang:
+1. Ubah flag `AUTH_ENABLE_SIGNUP`, `AUTH_ENABLE_GOOGLE`, dan/atau `AUTH_ENABLE_GUEST` di `src/config/app.ts` menjadi `true`.
+2. Di `firestore.rules`, set `isPrivateMode()` mengembalikan `false` (atau perbarui allow-list `isAllowedAccount()`) lalu publish aturan keamanan ke Firestore.
+3. Di Firebase Console > Authentication: aktifkan kembali penyedia Google dan aktifkan kembali "Enable create (sign-up)".
+4. Jalankan ulang test suite untuk memverifikasi.
+
+---
+
 ## 🛠️ Tech Stack
 
 *   **Frontend:** React, TypeScript / JavaScript

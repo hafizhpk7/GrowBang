@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogOut, Settings, Sun, Moon, Laptop, User } from "lucide-react";
-import { APP_NAME } from "../../config/app";
+import { APP_NAME, LOGIN_EMAIL_DOMAIN } from "../../config/app";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme, ThemeMode } from "../../context/ThemeContext";
+import { PAGE_CONTAINER } from "../../config/layout";
+import { getAccountName, emailToUsername } from "../../utils/loginIdentity";
 
 export const ShellHeader: React.FC = () => {
   const { user, cloudSyncStatus, signOut, isGuest } = useAuth();
@@ -23,9 +25,13 @@ export const ShellHeader: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const accountName = getAccountName(user);
+  const isInternalDomain = Boolean(user?.email && user.email.endsWith(`@${LOGIN_EMAIL_DOMAIN}`));
+  const subLineText = isInternalDomain ? `@${emailToUsername(user?.email)}` : (user?.email || "");
+
   return (
     <header className="bg-surface border-b border-border sticky top-0 z-30 transition-colors no-print">
-      <div className="max-w-[960px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <div className={`${PAGE_CONTAINER} h-16 flex items-center justify-between gap-3`}>
         {/* Brand Link */}
         <Link
           to="/"
@@ -104,11 +110,11 @@ export const ShellHeader: React.FC = () => {
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
-                  alt={user.displayName || "Akun"}
+                  alt={accountName}
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <span>{(user?.displayName || user?.email || (isGuest ? "Tamu" : "U")).slice(0, 1).toUpperCase()}</span>
+                <span>{accountName.slice(0, 1).toUpperCase()}</span>
               )}
             </button>
 
@@ -119,9 +125,9 @@ export const ShellHeader: React.FC = () => {
               >
                 <div className="px-3.5 py-2">
                   <p className="text-[13px] font-medium text-text truncate">
-                    {user.displayName || "Orang Tua"}
+                    {accountName}
                   </p>
-                  <p className="text-[12px] text-text-2 truncate">{user.email}</p>
+                  <p className="text-[12px] text-text-2 truncate">{subLineText}</p>
                 </div>
                 <div className="py-1">
                   <button

@@ -87,7 +87,7 @@ export const DashboardTab: React.FC<Props> = ({
   }, [profile.records]);
 
   return (
-    <div className="space-y-7 animate-fadeIn max-w-[960px]">
+    <div className="space-y-7 animate-fadeIn w-full">
       <PWABanner />
 
       {/* Page header: child's name, subline, action buttons */}
@@ -210,50 +210,55 @@ export const DashboardTab: React.FC<Props> = ({
         )}
       </section>
 
-      {/* Section "Kemajuan" with subtle elevation */}
-      <section className="bg-surface p-5 sm:p-6 rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] space-y-3.5">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-[16px] font-semibold text-text">Kemajuan imunisasi</h2>
-          <span className="text-[14px] text-text font-semibold font-tabular">
-            {totalDone} dari {totalSchedule} selesai ({progressPercent}%)
-          </span>
-        </div>
+      {/* Responsive Grid for Kemajuan and Keuangan summary cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Section "Kemajuan" with subtle elevation */}
+        <section className="bg-surface p-5 sm:p-6 rounded-[12px] border border-border shadow-card space-y-3.5 flex flex-col justify-between">
+          <div className="space-y-3.5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-[16px] font-semibold text-text">Kemajuan imunisasi</h2>
+              <span className="text-[14px] text-text font-semibold font-tabular">
+                {totalDone} dari {totalSchedule} selesai ({progressPercent}%)
+              </span>
+            </div>
 
-        {/* 6px bar with rounded track */}
-        <div className="w-full bg-track rounded-[3px] h-[7px] overflow-hidden">
-          <div
-            className="bg-primary h-full rounded-[3px] transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+            {/* 6px bar with rounded track */}
+            <div className="w-full bg-track rounded-[3px] h-[7px] overflow-hidden">
+              <div
+                className="bg-primary h-full rounded-[3px] transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[13px] text-text-2 pt-0.5">
-          <span>
-            Imunisasi program <strong className="text-text font-medium">{wajibDone} dari {wajibRows.length}</strong> selesai
-          </span>
-          <span>
-            Vaksin pilihan <strong className="text-text font-medium">{pilihanDone} dari {pilihanRows.length}</strong> selesai
-          </span>
-        </div>
-      </section>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[13px] text-text-2 pt-0.5">
+            <span>
+              Imunisasi program <strong className="text-text font-medium">{wajibDone} dari {wajibRows.length}</strong> selesai
+            </span>
+            <span>
+              Vaksin pilihan <strong className="text-text font-medium">{pilihanDone} dari {pilihanRows.length}</strong> selesai
+            </span>
+          </div>
+        </section>
 
-      {/* Compact Keuangan Summary Card with elevation */}
-      <section className="bg-surface p-5 sm:p-6 rounded-[12px] border border-border shadow-[0_2px_10px_-2px_rgba(42,36,32,0.05)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-[16px] font-semibold text-text">Perencanaan keuangan</h2>
-          <p className="text-[13px] text-text-2">
-            Realisasi pengeluaran saat ini <span className="font-semibold text-text tabular-nums">{formatRupiah(totalRealizedActual)}</span> dari estimasi maksimal <span className="font-semibold text-text tabular-nums">{formatRupiah(totalEstimatedSelfPay)}</span>.
-          </p>
-        </div>
+        {/* Compact Keuangan Summary Card with elevation */}
+        <section className="bg-surface p-5 sm:p-6 rounded-[12px] border border-border shadow-card flex flex-col justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-[16px] font-semibold text-text">Perencanaan keuangan</h2>
+            <p className="text-[13px] text-text-2 leading-relaxed">
+              Realisasi pengeluaran saat ini <span className="font-semibold text-text tabular-nums">{formatRupiah(totalRealizedActual)}</span> dari estimasi maksimal <span className="font-semibold text-text tabular-nums">{formatRupiah(totalEstimatedSelfPay)}</span>.
+            </p>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigateToTab("keuangan")}
-          className="self-start sm:self-auto px-4 py-2 bg-surface hover:bg-surface-sunken text-text text-[14px] font-medium rounded-[10px] border border-border-strong transition min-h-[40px] cursor-pointer shadow-xs shrink-0"
-        >
-          Buka keuangan
-        </button>
-      </section>
+          <button
+            type="button"
+            onClick={() => onNavigateToTab("keuangan")}
+            className="self-start sm:self-auto px-4 py-2 bg-surface hover:bg-surface-sunken text-text text-[14px] font-medium rounded-[10px] border border-border-strong transition min-h-[40px] cursor-pointer shadow-xs shrink-0"
+          >
+            Buka keuangan
+          </button>
+        </section>
+      </div>
     </div>
   );
 };

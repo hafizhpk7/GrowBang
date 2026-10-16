@@ -12,6 +12,7 @@ import { RecordModal } from "./RecordModal";
 import { ScheduleRow } from "../../../types";
 import { calculateDueDate, formatIndonesianDate } from "../../../utils/dates";
 import { useToast } from "../../../components/common/Toast";
+import { PAGE_CONTAINER } from "../../../config/layout";
 
 export const BayiLayout: React.FC = () => {
   const {
@@ -51,30 +52,30 @@ export const BayiLayout: React.FC = () => {
         }}
       />
 
-      <div className="flex-1 max-w-[960px] w-full mx-auto flex px-4 sm:px-6">
+      <div className="flex-1 w-full flex">
         <BayiSidebar />
 
-        <main className="flex-1 py-6 md:pl-8 min-w-0 pb-28 md:pb-12">
-          {/* Onboarding Gate: If 0 profiles, show OnboardingModal in place */}
-          {hasNoProfiles ? (
-            <OnboardingModal
-              isOpen={true}
-              onComplete={(profile) => {
-                addProfile(profile);
-              }}
-            />
-          ) : (
-            <Outlet
-              context={{
-                setRecordModalRow,
-                setSelectedVaccineRef,
-                setProfileModalOpen,
-                setProfileModalMode
-              }}
-            />
-          )}
-
-
+        <main className="flex-1 min-w-0">
+          <div className={`${PAGE_CONTAINER} py-6 pb-28 md:pb-12`}>
+            {/* Onboarding Gate: If 0 profiles, show OnboardingModal in place */}
+            {hasNoProfiles ? (
+              <OnboardingModal
+                isOpen={true}
+                onComplete={(profile) => {
+                  addProfile(profile);
+                }}
+              />
+            ) : (
+              <Outlet
+                context={{
+                  setRecordModalRow,
+                  setSelectedVaccineRef,
+                  setProfileModalOpen,
+                  setProfileModalMode
+                }}
+              />
+            )}
+          </div>
         </main>
       </div>
 

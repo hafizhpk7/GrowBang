@@ -4,6 +4,7 @@ import { ChevronDown, Check, Plus, Users, LogOut, Settings as SettingsIcon, Home
 import { Profile } from "../../../types";
 import { getChildAge } from "../../../utils/dates";
 import { useAuth } from "../../../context/AuthContext";
+import { PAGE_PAD } from "../../../config/layout";
 
 interface Props {
   profile: Profile | null;
@@ -54,7 +55,7 @@ export const BayiHeader: React.FC<Props> = ({
 
   return (
     <header className="bg-surface border-b border-border sticky top-0 z-30 transition-colors no-print">
-      <div className="max-w-[960px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <div className={`w-full mx-auto ${PAGE_PAD} h-16 flex items-center justify-between gap-3`}>
         <div className="flex items-center gap-2">
           {/* Mobile Back to Launcher Home button */}
           <Link

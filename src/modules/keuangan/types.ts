@@ -9,6 +9,7 @@ export interface Transaction {
   note?: string;         // trimmed, max 500 chars; omitted when empty
   createdAt: string;     // ISO timestamp
   updatedAt: string;     // ISO timestamp
+  createdBy?: string;    // uid
 }
 
 export interface Category {

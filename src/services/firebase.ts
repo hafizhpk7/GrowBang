@@ -108,7 +108,8 @@ export async function syncUserProfileDoc(user: User, customDisplayName?: string)
         id: user.uid,
         email: user.email || "",
         displayName: resolvedName,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        familyId: null
       },
       { merge: true }
     );

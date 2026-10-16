@@ -19,8 +19,17 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // PRIVATE MODE SWITCH. true  = only the allow-listed account(s) can touch data (current).
+    //                      false = any signed-in account can (public mode).
+    function isPrivateMode() {
+      return true;
+    }
+    function isAllowedAccount() {
+      return request.auth.token.email is string
+        && request.auth.token.email.lower() in ['keluargapuyoeci@growbang.app', 'kelpuci@growbang.app'];
+    }
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && (!isPrivateMode() || isAllowedAccount());
     }
 
     function isOwner(userId) {
@@ -115,6 +124,35 @@ service cloud.firestore {
           && isValidFinanceConfig(incoming());
         allow delete: if isOwner(userId) && isValidId(userId) && docId == 'main';
       }
+    }
+    // Family Management
+    match /families/{familyId} {
+      allow get: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+      // Only admins can create or manage family
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+      
+      match /members/{uid} {
+        allow get: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+        allow delete: if isSignedIn() && (request.auth.uid == uid || get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin');
+      }
+
+      match /financeTransactions/{txId} {
+        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+        allow create, update, delete: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+      }
+
+      match /babies/{babyId} {
+        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+        allow write: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+      }
+    }
+
+    match /invites/{code} {
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && get(/databases/$(database)/documents/families/$(incoming().fid)/members/$(request.auth.uid)).data.role == 'admin';
+      allow delete: if isSignedIn() && get(/databases/$(database)/documents/families/$(existing().fid)/members/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }

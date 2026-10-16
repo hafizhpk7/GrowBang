@@ -6,6 +6,9 @@ import { ShellHeader } from "../components/ShellHeader";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme, ThemeMode } from "../../context/ThemeContext";
 import { PWAInstallButton } from "../../components/common/PWAInstallButton";
+import { PAGE_CONTAINER, READING_MAX } from "../../config/layout";
+import { LOGIN_EMAIL_DOMAIN } from "../../config/app";
+import { getAccountName, emailToUsername } from "../../utils/loginIdentity";
 
 export const GlobalSettingsPage: React.FC = () => {
   const { user, lastSyncTime, signOut } = useAuth();
@@ -29,11 +32,16 @@ export const GlobalSettingsPage: React.FC = () => {
   const providerId = user?.providerData?.[0]?.providerId || "";
   const isGoogleAccount = providerId === "google.com";
 
+  const accountName = getAccountName(user);
+  const isInternalDomain = Boolean(user?.email && user.email.endsWith(`@${LOGIN_EMAIL_DOMAIN}`));
+  const username = emailToUsername(user?.email);
+
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col transition-colors">
       <ShellHeader />
 
-      <main className="flex-1 max-w-[960px] w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className={`flex-1 ${PAGE_CONTAINER} py-8`}>
+        <div className={`${READING_MAX} space-y-8`}>
         {/* Header with Back button */}
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -69,25 +77,27 @@ export const GlobalSettingsPage: React.FC = () => {
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
-                  alt={user.displayName || "Pengguna"}
+                  alt={accountName}
                   className="w-12 h-12 rounded-full object-cover shrink-0 border border-border"
                 />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-accent-tint text-accent-text flex items-center justify-center font-semibold text-[16px] shrink-0">
-                  {(user?.displayName || user?.email || "U").slice(0, 1).toUpperCase()}
+                  {accountName.slice(0, 1).toUpperCase()}
                 </div>
               )}
 
               <div className="space-y-0.5 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-[15px] text-text truncate">
-                    {user?.displayName || "Orang Tua"}
+                    {accountName}
                   </span>
                   <span className="text-[12px] px-2 py-0.5 rounded-[6px] bg-surface-sunken text-text-2 border border-border font-medium">
-                    {isGoogleAccount ? "Google" : "Email"}
+                    {isInternalDomain ? "Username" : (isGoogleAccount ? "Google" : "Email")}
                   </span>
                 </div>
-                <p className="text-[13px] text-text-2 truncate">{user?.email}</p>
+                <p className="text-[13px] text-text-2 truncate">
+                  {isInternalDomain ? `Username: ${username}` : user?.email}
+                </p>
                 <p className="text-[12px] text-text-3">
                   {lastSyncTime ? `Sinkronisasi terakhir: ${lastSyncTime}` : "Tersambung ke Cloud Firestore"}
                 </p>
@@ -227,6 +237,7 @@ export const GlobalSettingsPage: React.FC = () => {
             <PWAInstallButton />
           </div>
         </section>
+        </div>
       </main>
 
 

@@ -22,20 +22,21 @@ export const BayiSidebar: React.FC = () => {
   const currentPath = location.pathname;
 
   return (
-    <aside className="w-64 shrink-0 hidden md:block bg-bg-sidebar border-r border-border p-4 min-h-[calc(100vh-4rem)] flex flex-col justify-between no-print transition-colors">
+    <aside className="w-[72px] lg:w-64 shrink-0 hidden md:flex flex-col justify-between bg-bg-sidebar border-r border-border p-2.5 lg:p-4 sticky top-16 self-start h-[calc(100vh-4rem)] overflow-y-auto no-print transition-colors">
       <div className="space-y-4">
         {/* Back to Launcher Home Link */}
         <Link
           to="/"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-[13px] text-text-2 hover:text-text hover:bg-surface-sunken transition-colors font-medium border border-border/60 group"
-          title="Kembali ke launcher utama"
+          className="flex items-center justify-center lg:justify-start gap-2.5 px-2.5 lg:px-3 py-2 rounded-[10px] text-[13px] text-text-2 hover:text-text hover:bg-surface-sunken transition-colors font-medium border border-border/60 group"
+          title="Beranda utama"
+          aria-label="Beranda utama"
         >
           <LayoutGrid className="w-4 h-4 text-text-2 group-hover:text-primary transition-colors shrink-0" />
-          <span>Beranda utama</span>
+          <span className="hidden lg:inline">Beranda utama</span>
         </Link>
 
-        {/* Brand & Badge */}
-        <div className="px-3 py-1 flex items-center justify-between border-b border-border/40 pb-3">
+        {/* Brand & Badge (hidden in rail mode) */}
+        <div className="hidden lg:flex px-3 py-1 items-center justify-between border-b border-border/40 pb-3">
           <span className="font-serif font-bold text-[20px] text-text tracking-tight">{APP_NAME}</span>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary-tint text-primary font-medium border border-primary/20">0–5 thn</span>
         </div>
@@ -49,14 +50,16 @@ export const BayiSidebar: React.FC = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] transition-colors min-h-[44px] cursor-pointer ${
+                title={item.label}
+                aria-label={item.label}
+                className={`w-full flex items-center justify-center lg:justify-start gap-3 px-2.5 lg:px-3 py-2.5 rounded-[10px] text-[14px] transition-colors min-h-[44px] cursor-pointer ${
                   isActive
                     ? "bg-primary-tint text-primary-text font-semibold"
                     : "text-text-2 hover:text-text hover:bg-surface-sunken font-medium"
                 }`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
-                <span>{item.label}</span>
+                <span className="hidden lg:inline">{item.label}</span>
               </Link>
             );
           })}
@@ -64,21 +67,23 @@ export const BayiSidebar: React.FC = () => {
           <div className="pt-2">
             <Link
               to="/bayi/pengaturan"
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] transition-colors min-h-[44px] cursor-pointer ${
+              title="Pengaturan & rujukan"
+              aria-label="Pengaturan & rujukan"
+              className={`w-full flex items-center justify-center lg:justify-start gap-3 px-2.5 lg:px-3 py-2.5 rounded-[10px] text-[14px] transition-colors min-h-[44px] cursor-pointer ${
                 currentPath === "/bayi/pengaturan"
                   ? "bg-primary-tint text-primary-text font-semibold"
                   : "text-text-2 hover:text-text hover:bg-surface-sunken font-medium"
               }`}
             >
               <Settings className="w-5 h-5 shrink-0" />
-              <span>Pengaturan & rujukan</span>
+              <span className="hidden lg:inline">Pengaturan & rujukan</span>
             </Link>
           </div>
         </nav>
       </div>
 
       {/* Quiet Sidebar Note */}
-      <div className="p-3 bg-primary-tint rounded-[10px] text-[13px] text-primary-text leading-relaxed font-medium">
+      <div className="hidden lg:block p-3 bg-primary-tint rounded-[10px] text-[13px] text-primary-text leading-relaxed font-medium">
         14 imunisasi dasar rutin gratis di Puskesmas dan Posyandu.
       </div>
     </aside>

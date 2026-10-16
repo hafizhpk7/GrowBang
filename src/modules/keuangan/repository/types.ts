@@ -15,5 +15,6 @@ export interface FinanceRepository {
   upsertTransaction(tx: Transaction): Promise<void>;
   deleteTransaction(id: string): Promise<void>;
   saveConfig(cfg: FinanceConfig): Promise<void>;
+  updateBudget(categoryId: string, amount: number): Promise<void>;
   deleteAllData(): Promise<void>;
 }

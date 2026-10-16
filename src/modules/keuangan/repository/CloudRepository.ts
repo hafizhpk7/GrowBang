@@ -7,6 +7,7 @@ import {
   orderBy,
   query,
   setDoc,
+  updateDoc,
   deleteDoc,
   where,
   writeBatch
@@ -17,14 +18,18 @@ import { FinanceConfig, Transaction } from "../types";
 import { FinanceRepository } from "./types";
 
 export class CloudRepository implements FinanceRepository {
-  constructor(private uid: string) {}
+  private basePath: string;
+
+  constructor(private uid: string, familyId?: string | null) {
+    this.basePath = familyId ? `families/${familyId}` : `users/${uid}`;
+  }
 
   subscribeTransactions(
     range: { from: string; to: string },
     onData: (txs: Transaction[]) => void,
     onError: (e: Error) => void
   ): () => void {
-    const txsRef = collection(db, "users", this.uid, "financeTransactions");
+    const txsRef = collection(db, this.basePath, "financeTransactions");
     const q = query(
       txsRef,
       where("date", ">=", range.from),
@@ -78,7 +83,7 @@ export class CloudRepository implements FinanceRepository {
     onData: (cfg: FinanceConfig) => void,
     onError: (e: Error) => void
   ): () => void {
-    const cfgRef = doc(db, "users", this.uid, "financeConfig", "main");
+    const cfgRef = doc(db, this.basePath, "financeConfig", "main");
 
     const unsubscribe = onSnapshot(
       cfgRef,
@@ -115,8 +120,8 @@ export class CloudRepository implements FinanceRepository {
   }
 
   async upsertTransaction(tx: Transaction): Promise<void> {
-    const docPath = `users/${this.uid}/financeTransactions/${tx.id}`;
-    const txRef = doc(db, "users", this.uid, "financeTransactions", tx.id);
+    const docPath = `${this.basePath}/financeTransactions/${tx.id}`;
+    const txRef = doc(db, this.basePath, "financeTransactions", tx.id);
 
     // Build payload without undefined values
     const payload: Record<string, any> = {
@@ -127,7 +132,8 @@ export class CloudRepository implements FinanceRepository {
       categoryId: tx.categoryId,
       date: tx.date,
       createdAt: tx.createdAt,
-      updatedAt: tx.updatedAt
+      updatedAt: tx.updatedAt,
+      createdBy: tx.createdBy || this.uid
     };
 
     if (tx.note && tx.note.trim()) {
@@ -142,8 +148,8 @@ export class CloudRepository implements FinanceRepository {
   }
 
   async deleteTransaction(id: string): Promise<void> {
-    const docPath = `users/${this.uid}/financeTransactions/${id}`;
-    const txRef = doc(db, "users", this.uid, "financeTransactions", id);
+    const docPath = `${this.basePath}/financeTransactions/${id}`;
+    const txRef = doc(db, this.basePath, "financeTransactions", id);
 
     try {
       await deleteDoc(txRef);
@@ -153,8 +159,8 @@ export class CloudRepository implements FinanceRepository {
   }
 
   async saveConfig(cfg: FinanceConfig): Promise<void> {
-    const docPath = `users/${this.uid}/financeConfig/main`;
-    const cfgRef = doc(db, "users", this.uid, "financeConfig", "main");
+    const docPath = `${this.basePath}/financeConfig/main`;
+    const cfgRef = doc(db, this.basePath, "financeConfig", "main");
 
     const payload: Record<string, any> = {
       ownerId: this.uid,
@@ -175,8 +181,18 @@ export class CloudRepository implements FinanceRepository {
     }
   }
 
+  async updateBudget(categoryId: string, amount: number): Promise<void> {
+    const docPath = `${this.basePath}/financeConfig/main`;
+    const cfgRef = doc(db, this.basePath, "financeConfig", "main");
+    try {
+      await updateDoc(cfgRef, { [`budgets.${categoryId}`]: amount });
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.WRITE, docPath);
+    }
+  }
+
   async deleteAllData(): Promise<void> {
-    const txsRef = collection(db, "users", this.uid, "financeTransactions");
+    const txsRef = collection(db, this.basePath, "financeTransactions");
 
     try {
       const snapshot = await getDocs(txsRef);
@@ -193,13 +209,13 @@ export class CloudRepository implements FinanceRepository {
       }
 
       // Delete config doc
-      const cfgRef = doc(db, "users", this.uid, "financeConfig", "main");
+      const cfgRef = doc(db, this.basePath, "financeConfig", "main");
       await deleteDoc(cfgRef);
     } catch (e: any) {
       handleFirestoreError(
         e,
         OperationType.DELETE,
-        `users/${this.uid}/financeTransactions`
+        `${this.basePath}/financeTransactions`
       );
     }
   }
@@ -215,7 +231,7 @@ export class CloudRepository implements FinanceRepository {
       const chunk = txs.slice(i, i + 400);
 
       for (const tx of chunk) {
-        const txRef = doc(db, "users", this.uid, "financeTransactions", tx.id);
+        const txRef = doc(db, this.basePath, "financeTransactions", tx.id);
         const payload: Record<string, any> = {
           id: tx.id,
           ownerId: this.uid,
@@ -243,11 +259,11 @@ export class CloudRepository implements FinanceRepository {
 
   async checkCloudHasData(): Promise<boolean> {
     try {
-      const txsRef = collection(db, "users", this.uid, "financeTransactions");
+      const txsRef = collection(db, this.basePath, "financeTransactions");
       const txsSnap = await getDocs(query(txsRef, where("id", "!=", "")));
       if (!txsSnap.empty) return true;
 
-      const cfgRef = doc(db, "users", this.uid, "financeConfig", "main");
+      const cfgRef = doc(db, this.basePath, "financeConfig", "main");
       const cfgSnap = await getDoc(cfgRef);
       return cfgSnap.exists();
     } catch (e) {
