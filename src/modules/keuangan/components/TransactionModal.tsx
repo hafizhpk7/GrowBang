@@ -23,12 +23,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [type, setType] = useState<TxType>("expense");
   const [amountStr, setAmountStr] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
+  const [walletId, setWalletId] = useState<string>("default");
   const [date, setDate] = useState<string>(todayLocal());
   const [note, setNote] = useState<string>("");
 
   const [errors, setErrors] = useState<{
     amount?: string;
     categoryId?: string;
+    walletId?: string;
     date?: string;
     note?: string;
   }>({});
@@ -47,6 +49,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setType(initialEntry.type);
         setAmountStr(formatRupiahInput(initialEntry.amount));
         setCategoryId(initialEntry.categoryId);
+        setWalletId(initialEntry.walletId || "default");
         setDate(initialEntry.date);
         setNote(initialEntry.note || "");
       } else {
@@ -54,6 +57,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setAmountStr("");
         const activeExp = getActiveCategories(config, "expense");
         setCategoryId(activeExp.length > 0 ? activeExp[0].id : "");
+        setWalletId("default");
         setDate(todayLocal());
         setNote("");
       }
@@ -113,6 +117,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         type,
         amount: numAmount,
         categoryId,
+        walletId,
         date,
         note
       });
@@ -121,6 +126,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         type,
         amount: numAmount,
         categoryId,
+        walletId,
         date,
         note
       });
@@ -265,6 +271,35 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </select>
             {errors.categoryId && (
               <p className="text-[12px] text-danger mt-1 font-medium">{errors.categoryId}</p>
+            )}
+          </div>
+
+          {/* Wallet Input */}
+          <div className="space-y-1">
+            <label htmlFor="tx-wallet" className="text-[13px] font-medium text-text">
+              Dompet
+            </label>
+            <select
+              id="tx-wallet"
+              value={walletId}
+              onChange={(e) => {
+                setWalletId(e.target.value);
+                setErrors((prev) => ({ ...prev, walletId: undefined }));
+              }}
+              className={`w-full px-3 py-2 text-[14px] rounded-[10px] border bg-surface text-text min-h-[44px] ${
+                errors.walletId ? "border-danger" : "border-border hover:border-border-strong"
+              }`}
+            >
+              {Object.values(config.wallets || {})
+                .filter((w) => !w.archived || w.id === walletId)
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} {w.archived ? "(Diarsipkan)" : ""}
+                  </option>
+                ))}
+            </select>
+            {errors.walletId && (
+              <p className="text-[12px] text-danger mt-1 font-medium">{errors.walletId}</p>
             )}
           </div>
 

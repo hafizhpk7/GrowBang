@@ -1,4 +1,4 @@
-export const APP_NAME = "GrowBang";
+export const APP_NAME = "Kula";
 export const LOGIN_EMAIL_DOMAIN = "growbang.app";
 export const AUTH_ENABLE_SIGNUP = false; // Set to true to allow user registration and signup tab
 export const AUTH_ENABLE_GOOGLE = false; // Set to true to show Google sign-in button

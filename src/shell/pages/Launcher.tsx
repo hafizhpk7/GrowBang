@@ -26,7 +26,7 @@ export const LauncherPage: React.FC = () => {
             Halo, {greetingName}!
           </h1>
           <p className="text-[15px] sm:text-[16px] text-text-2 leading-relaxed">
-            Pilih modul aplikasi untuk mengelola kebutuhan keluarga Anda.
+            Apa yang ingin dirawat hari ini?
           </p>
         </div>
 

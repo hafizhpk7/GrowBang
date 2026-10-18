@@ -36,7 +36,8 @@ export function loadAppState(): AppState {
       return {
         schemaVersion: parsed.schemaVersion || SCHEMA_VERSION,
         profiles: [],
-        activeProfileId: ""
+        activeProfileId: "",
+        paymentMode: parsed.paymentMode || "HYBRID"
       };
     }
 

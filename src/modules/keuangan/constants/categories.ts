@@ -1,4 +1,4 @@
-import { Category, FinanceConfig } from "../types";
+import { Category, DEFAULT_WALLETS, FinanceConfig } from "../types";
 
 export const SYSTEM_CATEGORIES: Category[] = [
   // EXPENSE
@@ -26,7 +26,8 @@ export const DEFAULT_FINANCE_CONFIG: FinanceConfig = {
   schemaVersion: 1,
   customCategories: [],
   budgets: {},
-  includeVaccineCosts: true
+  includeVaccineCosts: true,
+  wallets: { ...DEFAULT_WALLETS }
 };
 
 export const FIRESTORE_TX_KEYS = [
@@ -38,7 +39,9 @@ export const FIRESTORE_TX_KEYS = [
   "date",
   "note",
   "createdAt",
-  "updatedAt"
+  "updatedAt",
+  "walletId",
+  "createdBy"
 ] as const;
 
 export const FIRESTORE_CONFIG_KEYS = [
@@ -47,5 +50,35 @@ export const FIRESTORE_CONFIG_KEYS = [
   "customCategories",
   "budgets",
   "includeVaccineCosts",
+  "wallets",
   "updatedAt"
+] as const;
+
+export const FIRESTORE_SAVINGS_GOAL_KEYS = [
+  "id",
+  "name",
+  "targetAmount",
+  "currentAmount",
+  "deadline",
+  "createdAt",
+  "updatedAt",
+  "createdBy"
+] as const;
+
+export const FIRESTORE_RECURRING_RULE_KEYS = [
+  "id",
+  "name",
+  "type",
+  "amount",
+  "categoryId",
+  "walletId",
+  "frequency",
+  "active",
+  "startDate",
+  "dayOfMonth",
+  "dayOfWeek",
+  "lastGeneratedThrough",
+  "createdAt",
+  "updatedAt",
+  "createdBy"
 ] as const;

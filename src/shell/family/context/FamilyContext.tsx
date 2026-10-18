@@ -76,6 +76,8 @@ export const FamilyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useFamily = () => {
   const context = useContext(FamilyContext);
-  if (!context) throw new Error('useFamily must be used within a FamilyProvider');
+  if (!context) {
+    return { status: 'none' as const, family: null, role: null, isAdmin: false, members: [] };
+  }
   return context;
 };

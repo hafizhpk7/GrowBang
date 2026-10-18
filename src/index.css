@@ -43,6 +43,8 @@
   --shadow-card-hover: 0 4px 14px -3px rgba(42, 36, 32, 0.08), 0 2px 5px 0 rgba(42, 36, 32, 0.04);
   --shadow-popover: 0 10px 25px -4px rgba(42, 36, 32, 0.12), 0 4px 8px -2px rgba(42, 36, 32, 0.06);
   --scrim: rgba(38, 32, 27, 0.4);
+  --stage1: #F6EFE0;
+  --stage2: #EADFC8;
 }
 
 [data-theme="dark"] {
@@ -55,6 +57,8 @@
   --text: #F5EFE7;
   --text-2: #BAAF9F;
   --text-3: #8C8274;
+  --stage1: #26302B;
+  --stage2: #1A211D;
 
   --primary: #76B495;
   --primary-hover: #8AC3A6;

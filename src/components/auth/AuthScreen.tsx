@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { KulaLogo } from "../common/KulaLogo";
 import {
   AUTH_ENABLE_SIGNUP,
   AUTH_ENABLE_GOOGLE,
@@ -146,11 +147,17 @@ export const AuthScreen: React.FC = () => {
       <div className="w-full max-w-[420px] space-y-6">
         {/* Header / Brand panel: flat primary-tint panel with serif tagline */}
         <div className="p-6 bg-primary-tint rounded-[12px] text-center space-y-2 border border-primary/20">
+          <div className="flex justify-center pb-1">
+            <KulaLogo size={56} alt="" />
+          </div>
           <h1 className="text-[28px] font-serif font-bold text-text tracking-tight">
-            GrowBang
+            Kula
           </h1>
-          <p className="text-[14px] text-primary-text leading-relaxed">
-            Pemantau imunisasi 0–5 tahun, jadwal terstruktur, dan estimasi biaya yang tenang & tersinkronisasi.
+          <p className="text-[14px] font-serif italic text-primary-text font-medium">
+            Tumbuh sekeluarga.
+          </p>
+          <p className="text-[13px] text-text-2 leading-relaxed">
+            Ruang privat keluarga untuk mencatat, merencanakan, dan merawat apa yang sedang bertumbuh, dari kesehatan si kecil sampai keuangan rumah.
           </p>
         </div>
 
@@ -264,7 +271,7 @@ export const AuthScreen: React.FC = () => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
             {effectiveMode === "register" && AUTH_ENABLE_SIGNUP && (
               <div className="space-y-1">
                 <label className="text-[13px] font-medium text-text">

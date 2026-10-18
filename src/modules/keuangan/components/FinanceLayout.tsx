@@ -4,6 +4,7 @@ import {
   BarChart3,
   Receipt,
   PiggyBank,
+  Target,
   Settings,
   Plus,
   LayoutGrid
@@ -21,6 +22,7 @@ export const FinanceLayout: React.FC = () => {
   const isRingkasan = pathname.includes("/ringkasan");
   const isTransaksi = pathname.includes("/transaksi");
   const isAnggaran = pathname.includes("/anggaran");
+  const isTabungan = pathname.includes("/tabungan");
   const isPengaturan = pathname.includes("/pengaturan");
 
   const showCatatBtn = isRingkasan || isTransaksi;
@@ -46,6 +48,13 @@ export const FinanceLayout: React.FC = () => {
       path: "/keuangan-keluarga/anggaran",
       icon: PiggyBank,
       isActive: isAnggaran
+    },
+    {
+      id: "tabungan",
+      label: "Tabungan",
+      path: "/keuangan-keluarga/tabungan",
+      icon: Target,
+      isActive: isTabungan
     },
     {
       id: "pengaturan",

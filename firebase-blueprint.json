@@ -19,6 +19,10 @@
         },
         "updatedAt": {
           "type": "string"
+        },
+        "familyId": {
+          "type": ["string", "null"],
+          "maxLength": 128
         }
       },
       "required": ["id", "email"]
@@ -58,6 +62,7 @@
         "type": { "type": "string" },
         "amount": { "type": "number" },
         "categoryId": { "type": "string", "maxLength": 64 },
+        "walletId": { "type": "string", "maxLength": 64 },
         "date": { "type": "string" },
         "note": { "type": "string", "maxLength": 500 },
         "createdAt": { "type": "string" },
@@ -67,7 +72,7 @@
     },
     "FinanceConfig": {
       "title": "FinanceConfig",
-      "description": "Konfigurasi kategori kustom, anggaran bulanan, dan opsi integrasi keuangan",
+      "description": "Konfigurasi kategori kustom, anggaran bulanan, dompet, dan opsi integrasi keuangan",
       "type": "object",
       "properties": {
         "ownerId": { "type": "string", "maxLength": 128 },
@@ -75,9 +80,44 @@
         "customCategories": { "type": "array" },
         "budgets": { "type": "object" },
         "includeVaccineCosts": { "type": "boolean" },
+        "wallets": { "type": "object" },
         "updatedAt": { "type": "string" }
       },
       "required": ["ownerId", "schemaVersion", "customCategories", "budgets", "includeVaccineCosts"]
+    },
+    "SavingsGoal": {
+      "title": "SavingsGoal",
+      "description": "Dokumen target tabungan dan progres keuangan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "targetAmount": { "type": "number" },
+        "currentAmount": { "type": "number" },
+        "deadline": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "targetAmount", "currentAmount"]
+    },
+    "RecurringRule": {
+      "title": "RecurringRule",
+      "description": "Aturan transaksi berulang otomatis secara periodik",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "categoryId": { "type": "string", "maxLength": 64 },
+        "walletId": { "type": "string", "maxLength": 64 },
+        "frequency": { "type": "string" },
+        "active": { "type": "boolean" },
+        "startDate": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "amount", "categoryId", "walletId", "frequency"]
     }
   },
   "firestore": {
@@ -96,6 +136,23 @@
     "/users/{userId}/financeConfig/{docId}": {
       "schema": "FinanceConfig",
       "description": "Dokumen konfigurasi keuangan keluarga"
+    },
+    "/users/{userId}/savingsGoals/{goalId}": {
+      "schema": "SavingsGoal",
+      "description": "Dokumen target tabungan pengguna"
+    },
+    "/users/{userId}/recurringRules/{ruleId}": {
+      "schema": "RecurringRule",
+      "description": "Dokumen aturan transaksi berulang"
+    },
+    "/families/{familyId}/savingsGoals/{goalId}": {
+      "schema": "SavingsGoal",
+      "description": "Dokumen target tabungan keluarga"
+    },
+    "/families/{familyId}/recurringRules/{ruleId}": {
+      "schema": "RecurringRule",
+      "description": "Dokumen aturan transaksi berulang keluarga"
     }
   }
 }
+

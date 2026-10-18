@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { FinanceLayout } from "./components/FinanceLayout";
 import { AnggaranPage } from "./pages/AnggaranPage";
+import { TabunganPage } from "./pages/TabunganPage";
 import { PengaturanPage } from "./pages/PengaturanPage";
 import { RingkasanPage } from "./pages/RingkasanPage";
 import { TransaksiPage } from "./pages/TransaksiPage";
@@ -16,6 +17,7 @@ export const KeuanganModule: React.FC = () => {
           <Route path="ringkasan" element={<RingkasanPage />} />
           <Route path="transaksi" element={<TransaksiPage />} />
           <Route path="anggaran" element={<AnggaranPage />} />
+          <Route path="tabungan" element={<TabunganPage />} />
           <Route path="pengaturan" element={<PengaturanPage />} />
           <Route path="*" element={<Navigate to="ringkasan" replace />} />
         </Route>

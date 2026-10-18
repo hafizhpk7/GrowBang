@@ -64,7 +64,7 @@ describe("6E: Routing, Integration, & UI Tests (R1-R17)", () => {
     mockAuthValue.user = null;
 
     render(<App />);
-    expect(screen.getByText(/Pemantau imunisasi 0–5 tahun/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ruang privat keluarga/i)).toBeInTheDocument();
   });
 
   it("R2 Auth loading -> Menyiapkan aplikasi skeleton shown", () => {

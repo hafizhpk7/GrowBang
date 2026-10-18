@@ -19,7 +19,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { AppState } from "../types";
+import { AppState, isPaymentMode } from "../types";
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -108,8 +108,7 @@ export async function syncUserProfileDoc(user: User, customDisplayName?: string)
         id: user.uid,
         email: user.email || "",
         displayName: resolvedName,
-        updatedAt: new Date().toISOString(),
-        familyId: null
+        updatedAt: new Date().toISOString()
       },
       { merge: true }
     );
@@ -206,13 +205,16 @@ export async function saveStateToCloud(userId: string, state: AppState): Promise
   const path = `users/${userId}/appData/current`;
   try {
     const docRef = doc(db, "users", userId, "appData", "current");
-    const payload = {
+    const payload: any = {
       ownerId: userId,
       schemaVersion: state.schemaVersion || 1,
       activeProfileId: state.activeProfileId,
       profiles: state.profiles,
       updatedAt: new Date().toISOString()
     };
+    if (isPaymentMode(state.paymentMode)) {
+      payload.paymentMode = state.paymentMode;
+    }
     await setDoc(docRef, payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -226,11 +228,20 @@ export async function loadStateFromCloud(userId: string): Promise<AppState | nul
     const snapshot = await getDoc(docRef);
     if (snapshot.exists()) {
       const data = snapshot.data();
+      const paymentMode = isPaymentMode(data.paymentMode) ? data.paymentMode : undefined;
       if (Array.isArray(data.profiles) && data.profiles.length > 0) {
         return {
           schemaVersion: data.schemaVersion || 1,
           profiles: data.profiles,
-          activeProfileId: data.activeProfileId || data.profiles[0].id
+          activeProfileId: data.activeProfileId || data.profiles[0].id,
+          paymentMode
+        };
+      } else if (paymentMode) {
+        return {
+          schemaVersion: data.schemaVersion || 1,
+          profiles: [],
+          activeProfileId: "",
+          paymentMode
         };
       }
     }
@@ -253,11 +264,21 @@ export function subscribeToCloudState(
     (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        const paymentMode = isPaymentMode(data.paymentMode) ? data.paymentMode : undefined;
         if (Array.isArray(data.profiles) && data.profiles.length > 0) {
           onData({
             schemaVersion: data.schemaVersion || 1,
             profiles: data.profiles,
-            activeProfileId: data.activeProfileId || data.profiles[0].id
+            activeProfileId: data.activeProfileId || data.profiles[0].id,
+            paymentMode
+          });
+          return;
+        } else if (paymentMode) {
+          onData({
+            schemaVersion: data.schemaVersion || 1,
+            profiles: [],
+            activeProfileId: "",
+            paymentMode
           });
           return;
         }

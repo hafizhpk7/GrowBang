@@ -77,6 +77,10 @@ export interface Profile {
 
 export type PaymentMode = "HYBRID" | "FULL_PRIVATE" | "FULL_BPJS";
 
+export function isPaymentMode(x: any): x is PaymentMode {
+  return x === "HYBRID" || x === "FULL_PRIVATE" || x === "FULL_BPJS";
+}
+
 export interface AppState {
   schemaVersion: number;
   profiles: Profile[];

@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme, ThemeMode } from "../../context/ThemeContext";
 import { PAGE_CONTAINER } from "../../config/layout";
 import { getAccountName, emailToUsername } from "../../utils/loginIdentity";
+import { KulaLogo } from "../../components/common/KulaLogo";
 
 export const ShellHeader: React.FC = () => {
   const { user, cloudSyncStatus, signOut, isGuest } = useAuth();
@@ -35,8 +36,9 @@ export const ShellHeader: React.FC = () => {
         {/* Brand Link */}
         <Link
           to="/"
-          className="flex items-center gap-2.5 font-serif font-bold text-[22px] text-text tracking-tight hover:opacity-90 transition cursor-pointer"
+          className="flex items-center gap-2 font-serif font-bold text-[22px] text-text tracking-tight hover:opacity-90 transition cursor-pointer"
         >
+          <KulaLogo size={40} alt="" />
           <span>{APP_NAME}</span>
         </Link>
 

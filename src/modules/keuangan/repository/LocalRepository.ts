@@ -1,5 +1,6 @@
 import { DEFAULT_FINANCE_CONFIG } from "../constants/categories";
-import { FinanceConfig, Transaction } from "../types";
+import { FinanceConfig, RecurringRule, SavingsGoal, Transaction } from "../types";
+import { normalizeConfig } from "../utils/normalization";
 import { FinanceRepository } from "./types";
 
 export const LOCAL_FINANCE_STORAGE_KEY = "keuangan-keluarga-v1";
@@ -8,6 +9,8 @@ interface LocalStorageData {
   schemaVersion: number;
   transactions: Transaction[];
   config: FinanceConfig;
+  savingsGoals: SavingsGoal[];
+  recurringRules: RecurringRule[];
 }
 
 export class LocalRepository implements FinanceRepository {
@@ -22,6 +25,16 @@ export class LocalRepository implements FinanceRepository {
     onError: (e: Error) => void;
   }> = new Set();
 
+  private goalsListeners: Set<{
+    onData: (goals: SavingsGoal[]) => void;
+    onError: (e: Error) => void;
+  }> = new Set();
+
+  private rulesListeners: Set<{
+    onData: (rules: RecurringRule[]) => void;
+    onError: (e: Error) => void;
+  }> = new Set();
+
   private loadData(): LocalStorageData {
     try {
       const raw = localStorage.getItem(LOCAL_FINANCE_STORAGE_KEY);
@@ -29,7 +42,9 @@ export class LocalRepository implements FinanceRepository {
         return {
           schemaVersion: 1,
           transactions: [],
-          config: { ...DEFAULT_FINANCE_CONFIG }
+          config: { ...DEFAULT_FINANCE_CONFIG },
+          savingsGoals: [],
+          recurringRules: []
         };
       }
 
@@ -38,7 +53,9 @@ export class LocalRepository implements FinanceRepository {
         return {
           schemaVersion: 1,
           transactions: [],
-          config: { ...DEFAULT_FINANCE_CONFIG }
+          config: { ...DEFAULT_FINANCE_CONFIG },
+          savingsGoals: [],
+          recurringRules: []
         };
       }
 
@@ -54,39 +71,49 @@ export class LocalRepository implements FinanceRepository {
             typeof tx.categoryId === "string" &&
             typeof tx.date === "string"
           ) {
-            validTxs.push(tx as Transaction);
-          } else {
-            console.warn("Dropped invalid local transaction:", tx);
+            validTxs.push({
+              ...tx,
+              walletId: tx.walletId || "default"
+            } as Transaction);
           }
         }
       }
 
-      const config: FinanceConfig = {
-        schemaVersion: 1,
-        customCategories: Array.isArray(parsed.config?.customCategories)
-          ? parsed.config.customCategories
-          : [],
-        budgets:
-          parsed.config?.budgets && typeof parsed.config.budgets === "object"
-            ? parsed.config.budgets
-            : {},
-        includeVaccineCosts:
-          typeof parsed.config?.includeVaccineCosts === "boolean"
-            ? parsed.config.includeVaccineCosts
-            : true
-      };
+      const config = normalizeConfig(parsed.config);
+
+      const savingsGoals: SavingsGoal[] = [];
+      if (Array.isArray(parsed.savingsGoals)) {
+        for (const g of parsed.savingsGoals) {
+          if (g && typeof g.id === "string" && typeof g.name === "string" && typeof g.targetAmount === "number") {
+            savingsGoals.push(g as SavingsGoal);
+          }
+        }
+      }
+
+      const recurringRules: RecurringRule[] = [];
+      if (Array.isArray(parsed.recurringRules)) {
+        for (const r of parsed.recurringRules) {
+          if (r && typeof r.id === "string" && typeof r.amount === "number" && typeof r.categoryId === "string" && typeof r.frequency === "string") {
+            recurringRules.push(r as RecurringRule);
+          }
+        }
+      }
 
       return {
         schemaVersion: 1,
         transactions: validTxs,
-        config
+        config,
+        savingsGoals,
+        recurringRules
       };
     } catch (e) {
       console.warn("Failed to parse local finance data:", e);
       return {
         schemaVersion: 1,
         transactions: [],
-        config: { ...DEFAULT_FINANCE_CONFIG }
+        config: { ...DEFAULT_FINANCE_CONFIG },
+        savingsGoals: [],
+        recurringRules: []
       };
     }
   }
@@ -117,6 +144,20 @@ export class LocalRepository implements FinanceRepository {
     }
   }
 
+  private notifyGoalsListeners(): void {
+    const data = this.loadData();
+    for (const listener of this.goalsListeners) {
+      listener.onData(data.savingsGoals);
+    }
+  }
+
+  private notifyRulesListeners(): void {
+    const data = this.loadData();
+    for (const listener of this.rulesListeners) {
+      listener.onData(data.recurringRules);
+    }
+  }
+
   subscribeTransactions(
     range: { from: string; to: string },
     onData: (txs: Transaction[]) => void,
@@ -125,7 +166,6 @@ export class LocalRepository implements FinanceRepository {
     const listener = { range, onData, onError };
     this.txListeners.add(listener);
 
-    // Initial async-or-sync call
     const data = this.loadData();
     const filtered = data.transactions.filter(
       (tx) => tx.date >= range.from && tx.date <= range.to
@@ -152,13 +192,47 @@ export class LocalRepository implements FinanceRepository {
     };
   }
 
+  subscribeSavingsGoals(
+    onData: (goals: SavingsGoal[]) => void,
+    onError: (e: Error) => void
+  ): () => void {
+    const listener = { onData, onError };
+    this.goalsListeners.add(listener);
+
+    const data = this.loadData();
+    onData(data.savingsGoals);
+
+    return () => {
+      this.goalsListeners.delete(listener);
+    };
+  }
+
+  subscribeRecurringRules(
+    onData: (rules: RecurringRule[]) => void,
+    onError: (e: Error) => void
+  ): () => void {
+    const listener = { onData, onError };
+    this.rulesListeners.add(listener);
+
+    const data = this.loadData();
+    onData(data.recurringRules);
+
+    return () => {
+      this.rulesListeners.delete(listener);
+    };
+  }
+
   async upsertTransaction(tx: Transaction): Promise<void> {
     const data = this.loadData();
+    const resolvedTx = { ...tx, walletId: tx.walletId || "default" };
     const idx = data.transactions.findIndex((t) => t.id === tx.id);
     if (idx >= 0) {
-      data.transactions[idx] = tx;
+      if (!resolvedTx.createdBy && data.transactions[idx].createdBy) {
+        resolvedTx.createdBy = data.transactions[idx].createdBy;
+      }
+      data.transactions[idx] = resolvedTx;
     } else {
-      data.transactions.push(tx);
+      data.transactions.push(resolvedTx);
     }
     this.saveData(data);
     this.notifyTxListeners();
@@ -173,7 +247,7 @@ export class LocalRepository implements FinanceRepository {
 
   async saveConfig(cfg: FinanceConfig): Promise<void> {
     const data = this.loadData();
-    data.config = cfg;
+    data.config = normalizeConfig(cfg);
     this.saveData(data);
     this.notifyConfigListeners();
   }
@@ -185,10 +259,120 @@ export class LocalRepository implements FinanceRepository {
     this.notifyConfigListeners();
   }
 
+  async upsertSavingsGoal(goal: SavingsGoal): Promise<void> {
+    const data = this.loadData();
+    const idx = data.savingsGoals.findIndex((g) => g.id === goal.id);
+    const nowIso = new Date().toISOString();
+    const resolved = {
+      ...goal,
+      updatedAt: nowIso,
+      createdAt: goal.createdAt || nowIso,
+      currentAmount: Math.max(0, goal.currentAmount)
+    };
+    if (idx >= 0) {
+      if (!resolved.createdBy && data.savingsGoals[idx].createdBy) {
+        resolved.createdBy = data.savingsGoals[idx].createdBy;
+      }
+      data.savingsGoals[idx] = resolved;
+    } else {
+      data.savingsGoals.push(resolved);
+    }
+    this.saveData(data);
+    this.notifyGoalsListeners();
+  }
+
+  async deleteSavingsGoal(id: string): Promise<void> {
+    const data = this.loadData();
+    data.savingsGoals = data.savingsGoals.filter((g) => g.id !== id);
+    this.saveData(data);
+    this.notifyGoalsListeners();
+  }
+
+  async adjustSavingsGoal(id: string, delta: number): Promise<void> {
+    const data = this.loadData();
+    const idx = data.savingsGoals.findIndex((g) => g.id === id);
+    if (idx >= 0) {
+      const g = data.savingsGoals[idx];
+      const nextAmount = Math.max(0, g.currentAmount + delta);
+      data.savingsGoals[idx] = {
+        ...g,
+        currentAmount: nextAmount,
+        updatedAt: new Date().toISOString()
+      };
+      this.saveData(data);
+      this.notifyGoalsListeners();
+    }
+  }
+
+  async upsertRecurringRule(rule: RecurringRule): Promise<void> {
+    const data = this.loadData();
+    const idx = data.recurringRules.findIndex((r) => r.id === rule.id);
+    const nowIso = new Date().toISOString();
+    const resolved = {
+      ...rule,
+      updatedAt: nowIso,
+      createdAt: rule.createdAt || nowIso,
+      walletId: rule.walletId || "default"
+    };
+    if (idx >= 0) {
+      if (!resolved.createdBy && data.recurringRules[idx].createdBy) {
+        resolved.createdBy = data.recurringRules[idx].createdBy;
+      }
+      data.recurringRules[idx] = resolved;
+    } else {
+      data.recurringRules.push(resolved);
+    }
+    this.saveData(data);
+    this.notifyRulesListeners();
+  }
+
+  async deleteRecurringRule(id: string): Promise<void> {
+    const data = this.loadData();
+    data.recurringRules = data.recurringRules.filter((r) => r.id !== id);
+    this.saveData(data);
+    this.notifyRulesListeners();
+  }
+
+  async generateRecurringTransactions(
+    txs: Transaction[],
+    ruleUpdates: { ruleId: string; lastGeneratedThrough: string }[]
+  ): Promise<{ created: number }> {
+    const data = this.loadData();
+    let created = 0;
+
+    for (const tx of txs) {
+      const exists = data.transactions.some((t) => t.id === tx.id);
+      if (!exists) {
+        data.transactions.push({ ...tx, walletId: tx.walletId || "default" });
+        created++;
+      }
+    }
+
+    for (const up of ruleUpdates) {
+      const rIdx = data.recurringRules.findIndex((r) => r.id === up.ruleId);
+      if (rIdx >= 0) {
+        if (!data.recurringRules[rIdx].lastGeneratedThrough || up.lastGeneratedThrough > data.recurringRules[rIdx].lastGeneratedThrough!) {
+          data.recurringRules[rIdx] = {
+            ...data.recurringRules[rIdx],
+            lastGeneratedThrough: up.lastGeneratedThrough,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      }
+    }
+
+    this.saveData(data);
+    this.notifyTxListeners();
+    this.notifyRulesListeners();
+    return { created };
+  }
+
   async deleteAllData(): Promise<void> {
     localStorage.removeItem(LOCAL_FINANCE_STORAGE_KEY);
     this.notifyTxListeners();
     this.notifyConfigListeners();
+    this.notifyGoalsListeners();
+    this.notifyRulesListeners();
   }
 
   public getRawData(): LocalStorageData {

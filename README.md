@@ -1,6 +1,6 @@
-# GrowBang 🍼👶
+# Kula · Tumbuh sekeluarga 🌿🐢
 
-**GrowBang** is a modern, comprehensive baby and toddler health and growth monitoring web application. Designed with a warm, human-centric UI/UX, GrowBang helps parents effortlessly manage immunization schedules, track medical milestones, and simulate healthcare costs dynamically based on their preferred insurance or national health coverage plans.
+Kula adalah aplikasi keluarga yang dirancang untuk dipakai bersama, tenang, dan tanpa gangguan. Berawal dari kebutuhan memantau tumbuh kembang anak, Kula kini menjadi rumah digital untuk berbagai urusan keluarga: jadwal imunisasi sesuai panduan IDAI dan Kemenkes, simulasi biaya dengan BPJS atau asuransi pribadi, hingga pencatatan pemasukan dan anggaran rumah tangga. Setiap modul dibuat agar mudah dipakai orang tua yang sibuk, dan akan terus bertambah seiring kebutuhan keluarga.
 
 ---
 

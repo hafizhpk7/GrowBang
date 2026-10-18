@@ -13,6 +13,7 @@ export function buildExportRows(
     Tanggal: string;
     Jenis: string;
     Kategori: string;
+    Dompet: string;
     "Nominal (Rp)": number;
     Catatan: string;
     Sumber: string;
@@ -24,7 +25,6 @@ export function buildExportRows(
 } {
   const monthEntries = (entries || []).filter((e) => monthKeyOf(e.date) === month);
 
-  // Sorted by date asc then createdAt asc
   monthEntries.sort((a, b) => {
     if (a.date !== b.date) {
       return a.date.localeCompare(b.date);
@@ -32,14 +32,21 @@ export function buildExportRows(
     return a.createdAt.localeCompare(b.createdAt);
   });
 
-  const transactions = monthEntries.map((e) => ({
-    Tanggal: e.date,
-    Jenis: e.type === "income" ? "Pemasukan" : "Pengeluaran",
-    Kategori: resolveCategoryName(config, e.categoryId),
-    "Nominal (Rp)": e.amount,
-    Catatan: e.note || "",
-    Sumber: e.source === "vaccine" ? "Jadwal vaksin" : "Manual"
-  }));
+  const wallets = config.wallets || {};
+
+  const transactions = monthEntries.map((e) => {
+    const w = wallets[e.walletId || "default"];
+    const walletName = w ? w.name : "Kas Utama";
+    return {
+      Tanggal: e.date,
+      Jenis: e.type === "income" ? "Pemasukan" : "Pengeluaran",
+      Kategori: resolveCategoryName(config, e.categoryId),
+      Dompet: walletName,
+      "Nominal (Rp)": e.amount,
+      Catatan: e.note || "",
+      Sumber: e.source === "vaccine" ? "Jadwal vaksin" : "Manual"
+    };
+  });
 
   const monthSummary = summarizeMonth(entries, month);
 

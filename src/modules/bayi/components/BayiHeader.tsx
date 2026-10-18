@@ -175,7 +175,7 @@ export const BayiHeader: React.FC<Props> = ({
               )}
             </div>
           ) : (
-            <span className="font-serif font-bold text-[18px] text-text">GrowBang</span>
+            <span className="font-serif font-bold text-[18px] text-text">Kula</span>
           )}
         </div>
 

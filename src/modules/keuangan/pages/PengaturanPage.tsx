@@ -6,6 +6,8 @@ import { useFinance } from "../state/FinanceContext";
 import { summarizeMonth } from "../utils/calculations";
 import { monthLabel } from "../utils/dates";
 import { exportFinanceToExcel } from "../utils/export";
+import { WalletsSection } from "../components/WalletsSection";
+import { RecurringSection } from "../components/RecurringSection";
 
 export const PengaturanPage: React.FC = () => {
   const {
@@ -99,6 +101,12 @@ export const PengaturanPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Wallets Section */}
+      <WalletsSection />
+
+      {/* Recurring Section */}
+      <RecurringSection />
 
       {/* Export Laporan Card */}
       <div className="bg-surface rounded-[12px] border border-border p-5 space-y-4 shadow-card">

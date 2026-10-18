@@ -123,7 +123,7 @@ describe("Phase P: Private Access Mode Tests", () => {
 
       // Brand text present exactly
       expect(
-        screen.getByText("Pemantau imunisasi 0–5 tahun, jadwal terstruktur, dan estimasi biaya yang tenang & tersinkronisasi.")
+        screen.getByText("Ruang privat keluarga untuk mencatat, merencanakan, dan merawat apa yang sedang bertumbuh, dari kesehatan si kecil sampai keuangan rumah.")
       ).toBeInTheDocument();
 
       // Hidden elements

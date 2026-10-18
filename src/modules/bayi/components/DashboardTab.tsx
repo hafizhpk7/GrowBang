@@ -1,9 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { PaymentMode, Profile, Record, ScheduleRow } from "../../../types";
+import { APP_NAME } from "../../../config/app";
 import { formatIndonesianDate, getChildAge, getScheduleStatus } from "../../../utils/dates";
 import { calculateCostSummary, formatRupiah } from "../../../utils/calc";
 import { CategoryTag, StatusIndicator } from "../../../components/common/Badges";
 import { PWABanner } from "./PWABanner";
+import { KulaMascotView } from "../../../components/three/KulaMascotView";
 
 interface Props {
   profile: Profile;
@@ -24,11 +26,45 @@ export const DashboardTab: React.FC<Props> = ({
   onNavigateToTab,
   onQuickMarkGiven
 }) => {
+  const [celebrateSignal, setCelebrateSignal] = useState(0);
   const age = getChildAge(profile.tanggalLahir);
 
   const recordMap = useMemo(() => {
     return new Map<string, Record>(profile.records.map((r) => [r.rowId, r]));
   }, [profile.records]);
+
+  // Overall progress calculations
+  const totalSchedule = profile.schedule.length;
+  const totalDone = profile.records.filter((r) => r.diberikan).length;
+  const progressPercent = totalSchedule > 0 ? Math.round((totalDone / totalSchedule) * 100) : 0;
+
+  // Track record saves (e.g. from RecordModal) to trigger celebration
+  const prevRecordCountRef = useRef(totalDone);
+  const prevRecordsKeyRef = useRef(
+    profile.records
+      .filter((r) => r.diberikan)
+      .map((r) => r.rowId)
+      .join(",")
+  );
+
+  useEffect(() => {
+    const currentGivenKey = profile.records
+      .filter((r) => r.diberikan)
+      .map((r) => r.rowId)
+      .join(",");
+    if (currentGivenKey !== prevRecordsKeyRef.current) {
+      if (totalDone > prevRecordCountRef.current || currentGivenKey.length > prevRecordsKeyRef.current.length) {
+        setCelebrateSignal((s) => s + 1);
+      }
+      prevRecordsKeyRef.current = currentGivenKey;
+      prevRecordCountRef.current = totalDone;
+    }
+  }, [profile.records, totalDone]);
+
+  const handleQuickMarkGiven = (row: ScheduleRow) => {
+    setCelebrateSignal((s) => s + 1);
+    onQuickMarkGiven(row);
+  };
 
   const rowStatuses = useMemo(() => {
     return profile.schedule.map((row) => {
@@ -41,11 +77,6 @@ export const DashboardTab: React.FC<Props> = ({
       };
     });
   }, [profile.schedule, recordMap, profile.tanggalLahir]);
-
-  // Overall progress calculations
-  const totalSchedule = profile.schedule.length;
-  const totalDone = profile.records.filter((r) => r.diberikan).length;
-  const progressPercent = totalSchedule > 0 ? Math.round((totalDone / totalSchedule) * 100) : 0;
 
   const wajibRows = profile.schedule.filter((r) => r.status === "Wajib");
   const wajibDone = wajibRows.filter((r) => recordMap.get(r.id)?.diberikan).length;
@@ -94,7 +125,7 @@ export const DashboardTab: React.FC<Props> = ({
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pt-1">
         <div>
           <h1 className="text-[28px] sm:text-[32px] font-semibold leading-tight text-text tracking-tight">
-            {profile.panggilan === "Alif" ? "GrowBang" : profile.panggilan}
+            {profile.panggilan || APP_NAME}
           </h1>
           <p className="text-[15px] text-text-2 mt-1 flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-text">{age.text}</span>
@@ -120,6 +151,14 @@ export const DashboardTab: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* 3D Mascot Kura Hero Area */}
+      <KulaMascotView
+        progress={progressPercent}
+        celebrateSignal={celebrateSignal}
+        greeting={`Halo, ${profile.panggilan || "Keluarga"}!`}
+        subtitle="Apa yang ingin dirawat hari ini?"
+      />
 
       {/* Section "Yang perlu dilakukan" (The main card) */}
       <section className="space-y-3">
@@ -193,7 +232,7 @@ export const DashboardTab: React.FC<Props> = ({
                   <div className="shrink-0 flex justify-end sm:justify-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t border-border/40 sm:border-t-0">
                     <button
                       type="button"
-                      onClick={() => onQuickMarkGiven(item.row)}
+                      onClick={() => handleQuickMarkGiven(item.row)}
                       className={`px-4 py-2 text-[14px] font-semibold rounded-[10px] min-h-[44px] min-w-[88px] transition cursor-pointer shadow-xs active:scale-95 ${
                         isFirstUrgent
                           ? "bg-primary hover:bg-primary-hover active:bg-primary-hover text-primary-fg"

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { Category, FinanceConfig, LedgerEntry, Transaction, TxType } from "../types";
+import { Category, FinanceConfig, LedgerEntry, RecurringRule, SavingsGoal, Transaction, TxType } from "../types";
 
 export interface FinanceContextType {
   selectedMonth: string;
@@ -8,6 +8,8 @@ export interface FinanceContextType {
   loading: boolean;
   error: Error | null;
   entries: LedgerEntry[];
+  savingsGoals: SavingsGoal[];
+  recurringRules: RecurringRule[];
   pendingClaims: { count: number; total: number };
   skippedVaccineWithoutDate: number;
 
@@ -15,6 +17,7 @@ export interface FinanceContextType {
     type: TxType;
     amount: number;
     categoryId: string;
+    walletId?: string;
     date: string;
     note?: string;
   }) => Promise<{ ok: boolean; errors?: any }>;
@@ -25,6 +28,7 @@ export interface FinanceContextType {
       type: TxType;
       amount: number;
       categoryId: string;
+      walletId?: string;
       date: string;
       note?: string;
     }
@@ -37,6 +41,18 @@ export interface FinanceContextType {
   renameCategory: (id: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   setCategoryArchived: (id: string, archived: boolean) => Promise<void>;
   setIncludeVaccineCosts: (enabled: boolean) => Promise<void>;
+
+  addWallet: (name: string) => Promise<{ ok: boolean; error?: string }>;
+  renameWallet: (id: string, name: string) => Promise<{ ok: boolean; error?: string }>;
+  setWalletArchived: (id: string, archived: boolean) => Promise<void>;
+
+  upsertSavingsGoal: (goal: SavingsGoal) => Promise<{ ok: boolean; errors?: any }>;
+  deleteSavingsGoal: (id: string) => Promise<void>;
+  adjustSavingsGoal: (id: string, delta: number) => Promise<void>;
+
+  upsertRecurringRule: (rule: RecurringRule) => Promise<{ ok: boolean; errors?: any }>;
+  deleteRecurringRule: (id: string) => Promise<void>;
+
   deleteAllFinanceData: () => Promise<void>;
 
   migrationDecision: "none" | "auto-upload" | "prompt";

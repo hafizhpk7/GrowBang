@@ -27,59 +27,95 @@ export function useBayiState(onNavigateToBabyHome?: () => void) {
     }
   }, []);
 
+  const dirtyRef = useRef(false);
+
   // Real-time Firestore sync listener when user is authenticated
   useEffect(() => {
     if (!user) return;
 
-    if (isFamilyMode) {
-      // Family Mode listener
-      const q = query(collection(db, 'families', family!.id, 'babies'));
-      return onSnapshot(q, (snapshot) => {
-        const profiles: Profile[] = snapshot.docs.map(doc => doc.data() as Profile);
-        setAppState(prev => ({ ...prev, profiles }));
-        saveAppState({ ...appState, profiles }); // partial save
-      });
-    } else {
-      // Legacy listener
-      return subscribeToCloudState(
-        user.uid,
-        (cloudData) => {
-          if (cloudData && Array.isArray(cloudData.profiles) && cloudData.profiles.length > 0) {
+    // Subscribe to user appData/current for paymentMode preference (works in solo and family mode)
+    const unsubCloudState = subscribeToCloudState(
+      user.uid,
+      (cloudData) => {
+        if (cloudData) {
+          if (!dirtyRef.current) {
             isSyncingFromCloudRef.current = true;
-            setAppState(cloudData);
-            saveAppState(cloudData);
-            markSynced();
-          } else {
-            setCloudSyncStatus("syncing");
-            saveStateToCloud(user.uid, appState)
-              .then(() => markSynced())
-              .catch(() => setCloudSyncStatus("error"));
+            setAppState(prev => ({
+              ...prev,
+              ...(isFamilyMode ? {} : {
+                profiles: cloudData.profiles.length > 0 ? cloudData.profiles : prev.profiles,
+                activeProfileId: cloudData.activeProfileId || prev.activeProfileId
+              }),
+              paymentMode: cloudData.paymentMode ?? prev.paymentMode
+            }));
           }
-        },
-        (error) => {
-          console.warn("Real-time listener note:", error);
+          if (!isFamilyMode && cloudData.profiles && cloudData.profiles.length > 0) {
+            const currentLocal = loadAppState();
+            saveAppState({
+              schemaVersion: cloudData.schemaVersion,
+              profiles: cloudData.profiles,
+              activeProfileId: cloudData.activeProfileId,
+              paymentMode: cloudData.paymentMode ?? currentLocal.paymentMode
+            });
+            markSynced();
+          }
+        } else if (!isFamilyMode) {
+          setCloudSyncStatus("syncing");
+          saveStateToCloud(user.uid, appState)
+            .then(() => markSynced())
+            .catch(() => setCloudSyncStatus("error"));
         }
-      );
+      },
+      (error) => {
+        console.warn("Real-time listener note:", error);
+      }
+    );
+
+    if (isFamilyMode) {
+      const q = query(collection(db, 'families', family!.id, 'babies'));
+      const unsubBabies = onSnapshot(q, (snapshot) => {
+        const profiles: Profile[] = snapshot.docs.map(doc => doc.data() as Profile);
+        if (profiles.length > 0) {
+          setAppState(prev => {
+            const next = { ...prev, profiles };
+            saveAppState(next);
+            return next;
+          });
+        }
+      });
+      return () => {
+        unsubCloudState();
+        unsubBabies();
+      };
     }
+
+    return () => {
+      unsubCloudState();
+    };
   }, [user?.uid, isFamilyMode, family?.id]);
 
-  // Auto-save local changes to Firestore and localStorage
+  // Auto-save local changes to localStorage and Firestore
   useEffect(() => {
-    if (!user) return;
-
     if (isSyncingFromCloudRef.current) {
       isSyncingFromCloudRef.current = false;
       return;
     }
 
     saveAppState(appState);
+    if (!user) return;
+
+    dirtyRef.current = true;
     setCloudSyncStatus("syncing");
 
     const timer = setTimeout(() => {
       saveStateToCloud(user.uid, appState)
-        .then(() => markSynced())
+        .then(() => {
+          dirtyRef.current = false;
+          markSynced();
+        })
         .catch((err) => {
           console.error("Auto cloud sync error:", err);
+          dirtyRef.current = false;
           setCloudSyncStatus("error");
         });
     }, 400);
