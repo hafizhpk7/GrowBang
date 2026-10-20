@@ -1,6 +1,7 @@
 import { DEFAULT_FINANCE_CONFIG } from "../constants/categories";
 import { FinanceConfig, RecurringRule, SavingsGoal, Transaction } from "../types";
 import { normalizeConfig } from "../utils/normalization";
+import { applyConfigPatch, ConfigPatch } from "../utils/configPatch";
 import { FinanceRepository } from "./types";
 
 export const LOCAL_FINANCE_STORAGE_KEY = "keuangan-keluarga-v1";
@@ -252,11 +253,42 @@ export class LocalRepository implements FinanceRepository {
     this.notifyConfigListeners();
   }
 
-  async updateBudget(categoryId: string, amount: number): Promise<void> {
+  async updateConfig(patch: ConfigPatch): Promise<void> {
     const data = this.loadData();
-    data.config.budgets[categoryId] = amount;
+    data.config = normalizeConfig(applyConfigPatch(data.config, patch));
     this.saveData(data);
     this.notifyConfigListeners();
+  }
+
+  async updateTransaction(id: string, input: Partial<Transaction>, expectedUpdatedAt?: string): Promise<void> {
+    const data = this.loadData();
+    const idx = data.transactions.findIndex((t) => t.id === id);
+    if (idx < 0) {
+      const err: any = new Error("NOT_FOUND");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+    const current = data.transactions[idx];
+    if (expectedUpdatedAt && current.updatedAt !== expectedUpdatedAt) {
+      const err: any = new Error("CONFLICT");
+      err.code = "CONFLICT";
+      err.currentDoc = current;
+      throw err;
+    }
+    data.transactions[idx] = {
+      ...current,
+      ...input,
+      id,
+      createdAt: current.createdAt,
+      createdBy: current.createdBy,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveData(data);
+    this.notifyTxListeners();
+  }
+
+  async updateBudget(categoryId: string, amount: number): Promise<void> {
+    return this.updateConfig({ kind: "setBudget", categoryId, amount });
   }
 
   async upsertSavingsGoal(goal: SavingsGoal): Promise<void> {

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { todayLocal } from "../utils/dates";
 import { Plus, Target, Trash2, Edit2, ArrowUpRight, ArrowDownRight, Calendar } from "lucide-react";
 import { formatRupiah } from "../../../utils/calc";
 import { useFinance } from "../state/FinanceContext";
@@ -35,7 +36,7 @@ export const TabunganPage: React.FC = () => {
     if (!deadline) {
       return { text: "Tanpa tenggat", tone: "bg-surface-sunken text-text-2 border border-border" };
     }
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     if (deadline < today) {
       return { text: "Lewat tenggat", tone: "bg-danger-tint text-danger border border-danger/20" };
     }

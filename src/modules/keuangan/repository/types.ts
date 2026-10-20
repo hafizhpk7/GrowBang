@@ -1,4 +1,5 @@
 import { FinanceConfig, RecurringRule, SavingsGoal, Transaction } from "../types";
+import { ConfigPatch } from "../utils/configPatch";
 
 export interface FinanceRepository {
   subscribeTransactions(
@@ -13,8 +14,10 @@ export interface FinanceRepository {
   ): () => void;
 
   upsertTransaction(tx: Transaction): Promise<void>;
+  updateTransaction?(id: string, input: Partial<Transaction>, expectedUpdatedAt?: string): Promise<void>;
   deleteTransaction(id: string): Promise<void>;
   saveConfig(cfg: FinanceConfig): Promise<void>;
+  updateConfig(patch: ConfigPatch): Promise<void>;
   updateBudget(categoryId: string, amount: number): Promise<void>;
 
   subscribeSavingsGoals(onData: (g: SavingsGoal[]) => void, onError: (e: Error) => void): () => void;

@@ -17,6 +17,7 @@ import { db, handleFirestoreError, OperationType } from "../../../services/fireb
 import { DEFAULT_FINANCE_CONFIG } from "../constants/categories";
 import { FinanceConfig, RecurringFrequency, RecurringRule, SavingsGoal, Transaction } from "../types";
 import { normalizeConfig } from "../utils/normalization";
+import { applyConfigPatch, ConfigPatch } from "../utils/configPatch";
 import { FinanceRepository } from "./types";
 
 export class CloudRepository implements FinanceRepository {
@@ -224,6 +225,7 @@ export class CloudRepository implements FinanceRepository {
     }
   }
 
+  /** @internal */
   async saveConfig(cfg: FinanceConfig): Promise<void> {
     const docPath = `${this.basePath}/financeConfig/main`;
     const cfgRef = doc(db, this.basePath, "financeConfig", "main");
@@ -246,14 +248,87 @@ export class CloudRepository implements FinanceRepository {
     }
   }
 
-  async updateBudget(categoryId: string, amount: number): Promise<void> {
+  async updateConfig(patch: ConfigPatch): Promise<void> {
     const docPath = `${this.basePath}/financeConfig/main`;
     const cfgRef = doc(db, this.basePath, "financeConfig", "main");
+
     try {
-      await updateDoc(cfgRef, { [`budgets.${categoryId}`]: amount, updatedAt: new Date().toISOString() });
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(cfgRef);
+        const currentData: FinanceConfig = snap.exists()
+          ? (snap.data() as FinanceConfig)
+          : { ...DEFAULT_FINANCE_CONFIG };
+
+        const patched = applyConfigPatch(currentData, patch);
+        const normalized = normalizeConfig(patched);
+
+        const payload: Record<string, any> = {
+          ownerId: this.uid,
+          schemaVersion: 1,
+          customCategories: normalized.customCategories,
+          budgets: normalized.budgets,
+          includeVaccineCosts: normalized.includeVaccineCosts,
+          wallets: normalized.wallets,
+          updatedAt: new Date().toISOString()
+        };
+
+        txn.set(cfgRef, payload);
+      });
     } catch (e: any) {
       handleFirestoreError(e, OperationType.WRITE, docPath);
     }
+  }
+
+  async updateTransaction(id: string, input: Partial<Transaction>, expectedUpdatedAt?: string): Promise<void> {
+    const docPath = `${this.basePath}/financeTransactions/${id}`;
+    const txRef = doc(db, this.basePath, "financeTransactions", id);
+
+    try {
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(txRef);
+        if (!snap.exists()) {
+          const err: any = new Error("NOT_FOUND");
+          err.code = "NOT_FOUND";
+          throw err;
+        }
+
+        const current = snap.data();
+        if (expectedUpdatedAt && current.updatedAt !== expectedUpdatedAt) {
+          const err: any = new Error("CONFLICT");
+          err.code = "CONFLICT";
+          err.currentDoc = current;
+          throw err;
+        }
+
+        const now = new Date().toISOString();
+        const updated: Record<string, any> = {
+          id,
+          ownerId: this.uid,
+          type: input.type ?? current.type,
+          amount: Math.round(input.amount ?? current.amount),
+          categoryId: input.categoryId ?? current.categoryId,
+          walletId: input.walletId ?? current.walletId ?? "default",
+          date: input.date ?? current.date,
+          createdAt: current.createdAt,
+          updatedAt: now,
+          createdBy: current.createdBy || this.uid
+        };
+
+        const note = input.note !== undefined ? input.note : current.note;
+        if (note && String(note).trim()) {
+          updated.note = String(note).trim();
+        }
+
+        txn.set(txRef, updated);
+      });
+    } catch (e: any) {
+      if (e.message === "CONFLICT" || e.message === "NOT_FOUND") throw e;
+      handleFirestoreError(e, OperationType.WRITE, docPath);
+    }
+  }
+
+  async updateBudget(categoryId: string, amount: number): Promise<void> {
+    return this.updateConfig({ kind: "setBudget", categoryId, amount });
   }
 
   async upsertSavingsGoal(goal: SavingsGoal): Promise<void> {

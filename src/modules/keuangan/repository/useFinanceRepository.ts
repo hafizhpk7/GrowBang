@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useFamily } from "../../../shell/family/context/FamilyContext";
 import { CloudRepository } from "./CloudRepository";
+import { FamilyCloudRepository } from "./FamilyCloudRepository";
 import { LocalRepository } from "./LocalRepository";
 import { FinanceRepository } from "./types";
 
@@ -9,17 +10,19 @@ export function useFinanceRepository(): {
   repository: FinanceRepository;
   userId: string | null;
 } {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const userId = user?.uid || null;
+  const { status, family } = useFamily();
 
-  const { family } = useFamily();
-  
   const repository = useMemo<FinanceRepository>(() => {
-    if (userId) {
-      return new CloudRepository(userId, family?.id);
+    if (isGuest || !userId) {
+      return new LocalRepository();
     }
-    return new LocalRepository();
-  }, [userId, family?.id]);
+    if (status === "active" && family?.id) {
+      return new FamilyCloudRepository(family.id, userId);
+    }
+    return new CloudRepository(userId);
+  }, [isGuest, userId, status, family?.id]);
 
   return { repository, userId };
 }

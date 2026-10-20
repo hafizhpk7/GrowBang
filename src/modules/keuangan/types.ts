@@ -29,6 +29,7 @@ export interface Transaction {
   createdAt: string;     // ISO timestamp
   updatedAt: string;     // ISO timestamp
   createdBy?: string;    // uid
+  updatedBy?: string;    // uid
 }
 
 export interface Category {

@@ -22,7 +22,8 @@ export const BayiLayout: React.FC = () => {
     addProfile,
     updateProfile,
     deleteProfile,
-    updateRecord
+    updateRecord,
+    isReadOnly
   } = useBayi();
 
   const { showToast } = useToast();
@@ -56,10 +57,16 @@ export const BayiLayout: React.FC = () => {
         <BayiSidebar />
 
         <main className="flex-1 min-w-0">
+          {isReadOnly && (
+            <div className="bg-surface-sunken p-4 text-center text-[14px] text-text-2 border-b border-border">
+              Mode lihat saja: Hanya admin keluarga yang dapat mengubah data Bayi.
+            </div>
+          )}
           <div className={`${PAGE_CONTAINER} py-6 pb-28 md:pb-12`}>
             {/* Onboarding Gate: If 0 profiles, show OnboardingModal in place */}
             {hasNoProfiles ? (
               <OnboardingModal
+                key="onboarding"
                 isOpen={true}
                 onComplete={(profile) => {
                   addProfile(profile);
@@ -67,6 +74,7 @@ export const BayiLayout: React.FC = () => {
               />
             ) : (
               <Outlet
+                key="outlet"
                 context={{
                   setRecordModalRow,
                   setSelectedVaccineRef,

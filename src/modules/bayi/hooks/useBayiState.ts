@@ -1,129 +1,64 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, query, onSnapshot } from "firebase/firestore";
-import { db } from "../../../services/firebase";
-import { SEED_SCHEDULE } from "../../../data/seed";
 import { AppState, Insurance, PaymentMode, Profile, Record, ScheduleRow } from "../../../types";
-import { clearAllData as clearStorageData, getInitialState, loadAppState, saveAppState } from "../../../utils/storage";
+import { getInitialState, loadAppState, saveAppState } from "../../../utils/storage";
 import { useAuth } from "../../../context/AuthContext";
-import { useFamily } from "../../../shell/family/context/FamilyContext";
 import { useToast } from "../../../components/common/Toast";
-import { saveStateToCloud, subscribeToCloudState } from "../../../services/firebase";
+import { todayLocal } from "../../keuangan/utils/dates";
+import * as transitions from "../state/transitions";
+import { useBayiRepository } from "../repository/useBayiRepository";
 
 export function useBayiState(onNavigateToBabyHome?: () => void) {
-  const { user, setCloudSyncStatus, markSynced } = useAuth();
-  const { status: familyStatus, family } = useFamily();
+  const { user } = useAuth();
   const { showToast } = useToast();
-  const [appState, setAppState] = useState<AppState>(getInitialState);
-  const isSyncingFromCloudRef = useRef(false);
-  const isFamilyMode = familyStatus === 'active' && family;
+  const { repository, mode, isAdmin } = useBayiRepository();
 
-  // Initialize app state from localStorage cache
-  useEffect(() => {
-    try {
-      const saved = loadAppState();
-      setAppState(saved);
-    } catch (e) {
-      console.error("Gagal memuat state lokal:", e);
+  const [appState, setAppState] = useState<AppState>(() => {
+    if (typeof window !== "undefined") {
+      return loadAppState();
     }
-  }, []);
+    return getInitialState();
+  });
 
+  const isSyncingFromCloudRef = useRef(false);
   const dirtyRef = useRef(false);
 
-  // Real-time Firestore sync listener when user is authenticated
+  // Subscribe to the active repository
   useEffect(() => {
-    if (!user) return;
+    isSyncingFromCloudRef.current = true;
 
-    // Subscribe to user appData/current for paymentMode preference (works in solo and family mode)
-    const unsubCloudState = subscribeToCloudState(
-      user.uid,
-      (cloudData) => {
-        if (cloudData) {
-          if (!dirtyRef.current) {
-            isSyncingFromCloudRef.current = true;
-            setAppState(prev => ({
-              ...prev,
-              ...(isFamilyMode ? {} : {
-                profiles: cloudData.profiles.length > 0 ? cloudData.profiles : prev.profiles,
-                activeProfileId: cloudData.activeProfileId || prev.activeProfileId
-              }),
-              paymentMode: cloudData.paymentMode ?? prev.paymentMode
-            }));
-          }
-          if (!isFamilyMode && cloudData.profiles && cloudData.profiles.length > 0) {
-            const currentLocal = loadAppState();
-            saveAppState({
-              schemaVersion: cloudData.schemaVersion,
-              profiles: cloudData.profiles,
-              activeProfileId: cloudData.activeProfileId,
-              paymentMode: cloudData.paymentMode ?? currentLocal.paymentMode
-            });
-            markSynced();
-          }
-        } else if (!isFamilyMode) {
-          setCloudSyncStatus("syncing");
-          saveStateToCloud(user.uid, appState)
-            .then(() => markSynced())
-            .catch(() => setCloudSyncStatus("error"));
-        }
+    const unsubscribe = repository.subscribe(
+      (newState) => {
+        setAppState(newState);
+        isSyncingFromCloudRef.current = false;
       },
-      (error) => {
-        console.warn("Real-time listener note:", error);
+      (err) => {
+        console.warn("Bayi repository subscription note:", err);
+        isSyncingFromCloudRef.current = false;
       }
     );
 
-    if (isFamilyMode) {
-      const q = query(collection(db, 'families', family!.id, 'babies'));
-      const unsubBabies = onSnapshot(q, (snapshot) => {
-        const profiles: Profile[] = snapshot.docs.map(doc => doc.data() as Profile);
-        if (profiles.length > 0) {
-          setAppState(prev => {
-            const next = { ...prev, profiles };
-            saveAppState(next);
-            return next;
-          });
-        }
-      });
-      return () => {
-        unsubCloudState();
-        unsubBabies();
-      };
+    return () => {
+      unsubscribe();
+    };
+  }, [repository]);
+
+  // In personal or guest mode: auto-save local changes to localStorage and Firestore
+  useEffect(() => {
+    if (mode === "family") {
+      // In family mode, do NOT write whole state to localStorage or appData
+      return;
     }
 
-    return () => {
-      unsubCloudState();
-    };
-  }, [user?.uid, isFamilyMode, family?.id]);
-
-  // Auto-save local changes to localStorage and Firestore
-  useEffect(() => {
     if (isSyncingFromCloudRef.current) {
       isSyncingFromCloudRef.current = false;
       return;
     }
 
+    // Save to local storage for guest / personal mode
     saveAppState(appState);
-    if (!user) return;
+  }, [appState, mode]);
 
-    dirtyRef.current = true;
-    setCloudSyncStatus("syncing");
-
-    const timer = setTimeout(() => {
-      saveStateToCloud(user.uid, appState)
-        .then(() => {
-          dirtyRef.current = false;
-          markSynced();
-        })
-        .catch((err) => {
-          console.error("Auto cloud sync error:", err);
-          dirtyRef.current = false;
-          setCloudSyncStatus("error");
-        });
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [appState, user?.uid, setCloudSyncStatus, markSynced]);
-
-  // Active profile
+  // Derived active profile
   const activeProfile = useMemo(() => {
     if (appState.profiles.length === 0) return null;
     const found = appState.profiles.find((p) => p.id === appState.activeProfileId);
@@ -131,217 +66,203 @@ export function useBayiState(onNavigateToBabyHome?: () => void) {
   }, [appState.profiles, appState.activeProfileId]);
 
   const paymentMode = appState.paymentMode || "HYBRID";
+  const isReadOnly = mode === "family" && !isAdmin;
+
+  const assertCanWrite = useCallback((): boolean => {
+    if (isReadOnly) {
+      showToast("Mode lihat saja: Hanya admin keluarga yang dapat mengubah data Bayi.");
+      return false;
+    }
+    return true;
+  }, [isReadOnly, showToast]);
 
   // H1: addProfile
-  const addProfile = useCallback((newProfile: Profile) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: [...prev.profiles, newProfile],
-      activeProfileId: newProfile.id
-    }));
-  }, []);
+  const addProfile = useCallback(
+    (newProfile: Profile) => {
+      if (!assertCanWrite()) return;
+      const next = transitions.addProfile(appState, newProfile);
+      setAppState(next);
+      repository.saveState(next, appState).catch((err) => {
+        showToast(err.message || "Gagal menyimpan data anak");
+      });
+    },
+    [appState, assertCanWrite, repository, showToast]
+  );
 
-  // H2: selectProfile
-  const selectProfile = useCallback((id: string) => {
-    setAppState((prev) => ({
-      ...prev,
-      activeProfileId: id
-    }));
-  }, []);
+  // H2: selectProfile (available to everyone)
+  const selectProfile = useCallback(
+    (id: string) => {
+      const next = transitions.selectProfile(appState, id);
+      setAppState(next);
+      repository.savePreferences(id, paymentMode).catch(() => {});
+    },
+    [appState, paymentMode, repository]
+  );
 
   // H3: updateProfile
-  const updateProfile = useCallback((updatedProfile: Profile) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => (p.id === updatedProfile.id ? updatedProfile : p))
-    }));
-  }, []);
+  const updateProfile = useCallback(
+    (updatedProfile: Profile) => {
+      if (!assertCanWrite()) return;
+      const next = transitions.updateProfile(appState, updatedProfile);
+      setAppState(next);
+      repository.saveState(next, appState).catch((err) => {
+        showToast(err.message || "Gagal memperbarui profil anak");
+      });
+    },
+    [appState, assertCanWrite, repository, showToast]
+  );
 
   // H4: deleteProfile
-  const deleteProfile = useCallback((id: string) => {
-    setAppState((prev) => {
-      const remaining = prev.profiles.filter((p) => p.id !== id);
-      let nextActiveId = "";
-
-      if (remaining.length > 0) {
-        if (prev.activeProfileId === id) {
-          nextActiveId = remaining[0].id;
-        } else {
-          nextActiveId = prev.activeProfileId;
-        }
-      } else {
-        nextActiveId = "";
-      }
-
-      const newState: AppState = {
-        ...prev,
-        profiles: remaining,
-        activeProfileId: nextActiveId
-      };
-
-      saveAppState(newState);
-      return newState;
-    });
-  }, []);
+  const deleteProfile = useCallback(
+    (id: string) => {
+      if (!assertCanWrite()) return;
+      const next = transitions.deleteProfile(appState, id);
+      setAppState(next);
+      repository.saveState(next, appState).catch((err) => {
+        showToast(err.message || "Gagal menghapus profil anak");
+      });
+    },
+    [appState, assertCanWrite, repository, showToast]
+  );
 
   // H5: updateScheduleRow
-  const updateScheduleRow = useCallback((updatedRow: ScheduleRow) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        return {
-          ...p,
-          schedule: p.schedule.map((r) => (r.id === updatedRow.id ? updatedRow : r))
-        };
-      })
-    }));
-  }, []);
+  const updateScheduleRow = useCallback(
+    (updatedRow: ScheduleRow) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
+      const next = transitions.updateScheduleRow(appState, activeProfile.id, updatedRow);
+      setAppState(next);
+      repository.updateScheduleRow(activeProfile.id, updatedRow).catch((err) => {
+        showToast(err.message || "Gagal memperbarui jadwal");
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast]
+  );
 
   // H6: addCustomRow
-  const addCustomRow = useCallback((newRow: ScheduleRow) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        return {
-          ...p,
-          schedule: [...p.schedule, newRow]
-        };
-      })
-    }));
-  }, []);
+  const addCustomRow = useCallback(
+    (newRow: ScheduleRow) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
+      const next = transitions.addCustomRow(appState, activeProfile.id, newRow);
+      setAppState(next);
+      repository.addCustomRow(activeProfile.id, newRow).catch((err) => {
+        showToast(err.message || "Gagal menambah jadwal khusus");
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast]
+  );
 
   // H7: deleteCustomRow
-  const deleteCustomRow = useCallback((rowId: string) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        return {
-          ...p,
-          schedule: p.schedule.filter((r) => r.id !== rowId),
-          records: p.records.filter((rec) => rec.rowId !== rowId)
-        };
-      })
-    }));
-  }, []);
+  const deleteCustomRow = useCallback(
+    (rowId: string) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
+      const next = transitions.deleteCustomRow(appState, activeProfile.id, rowId);
+      setAppState(next);
+      repository.deleteCustomRow(activeProfile.id, rowId).catch((err) => {
+        showToast(err.message || "Gagal menghapus jadwal");
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast]
+  );
 
   // H8: resetSchedule
   const resetSchedule = useCallback(() => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        return {
-          ...p,
-          schedule: JSON.parse(JSON.stringify(SEED_SCHEDULE))
-        };
-      })
-    }));
-  }, []);
+    if (!assertCanWrite()) return;
+    if (!activeProfile) return;
+    const next = transitions.resetSchedule(appState, activeProfile.id);
+    setAppState(next);
+    repository.resetSchedule(activeProfile.id).catch((err) => {
+      showToast(err.message || "Gagal mereset jadwal");
+    });
+  }, [activeProfile, appState, assertCanWrite, repository, showToast]);
 
   // H9: updateRecord
-  const updateRecord = useCallback((updatedRec: Record) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        const exists = p.records.some((r) => r.rowId === updatedRec.rowId);
-        const newRecords = exists
-          ? p.records.map((r) => (r.rowId === updatedRec.rowId ? updatedRec : r))
-          : [...p.records, updatedRec];
-        return {
-          ...p,
-          records: newRecords
-        };
-      })
-    }));
-  }, []);
+  const updateRecord = useCallback(
+    (updatedRec: Record) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
+      const next = transitions.updateRecord(appState, activeProfile.id, updatedRec);
+      setAppState(next);
+      repository.updateRecord(activeProfile.id, updatedRec).catch((err) => {
+        showToast(err.message || "Gagal menyimpan catatan vaksin");
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast]
+  );
 
   // H10: quickMarkGiven
-  const quickMarkGiven = useCallback((row: ScheduleRow) => {
-    if (!activeProfile) return;
-    const previousRecord = activeProfile.records.find((r) => r.rowId === row.id);
-    const todayStr = new Date().toISOString().split("T")[0];
+  const quickMarkGiven = useCallback(
+    (row: ScheduleRow) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
 
-    const newRecord: Record = {
-      ...(previousRecord || { rowId: row.id }),
-      rowId: row.id,
-      diberikan: true,
-      tanggalDiberikan: previousRecord?.tanggalDiberikan || todayStr,
-      tempat: previousRecord?.tempat || (row.gratis === "Ya" ? "Puskesmas" : "Klinik"),
-      biayaAktual:
-        previousRecord?.biayaAktual !== undefined
-          ? previousRecord.biayaAktual
-          : row.gratis === "Ya"
-          ? 0
-          : row.min
-    };
+      const todayStr = todayLocal();
+      const { newRecord, previousRecord } = transitions.buildQuickMarkRecord(activeProfile, row, todayStr);
 
-    updateRecord(newRecord);
+      updateRecord(newRecord);
 
-    showToast(`Ditandai selesai: ${row.vaksin}.`, "Urungkan", () => {
-      if (previousRecord) {
-        updateRecord(previousRecord);
-      } else {
-        setAppState((prev) => ({
-          ...prev,
-          profiles: prev.profiles.map((p) => {
-            if (p.id !== prev.activeProfileId) return p;
-            return {
-              ...p,
-              records: p.records.filter((rec) => rec.rowId !== row.id)
-            };
-          })
-        }));
-      }
-    });
-  }, [activeProfile, updateRecord, showToast]);
+      showToast(`Ditandai selesai: ${row.vaksin}.`, "Urungkan", () => {
+        if (!assertCanWrite()) return;
+        if (previousRecord) {
+          updateRecord(previousRecord);
+        } else {
+          // Revert addition
+          const next = transitions.deleteCustomRow(appState, activeProfile.id, row.id);
+          setAppState(next);
+          repository.saveState(next, appState).catch(() => {});
+        }
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast, updateRecord]
+  );
 
   // H11: updateInsurance
-  const updateInsurance = useCallback((updatedInsurance: Insurance) => {
-    setAppState((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => {
-        if (p.id !== prev.activeProfileId) return p;
-        return {
-          ...p,
-          insurance: updatedInsurance
-        };
-      })
-    }));
-  }, []);
+  const updateInsurance = useCallback(
+    (updatedInsurance: Insurance) => {
+      if (!assertCanWrite()) return;
+      if (!activeProfile) return;
+      const next = transitions.updateInsurance(appState, activeProfile.id, updatedInsurance);
+      setAppState(next);
+      repository.saveState(next, appState).catch((err) => {
+        showToast(err.message || "Gagal memperbarui asuransi");
+      });
+    },
+    [activeProfile, appState, assertCanWrite, repository, showToast]
+  );
 
-  // H12: updatePaymentMode
-  const updatePaymentMode = useCallback((mode: PaymentMode) => {
-    setAppState((prev) => ({
-      ...prev,
-      paymentMode: mode
-    }));
-  }, []);
+  // H12: updatePaymentMode (available to everyone)
+  const updatePaymentMode = useCallback(
+    (mode: PaymentMode) => {
+      const next = transitions.updatePaymentMode(appState, mode);
+      setAppState(next);
+      repository.savePreferences(appState.activeProfileId, mode).catch(() => {});
+    },
+    [appState, repository]
+  );
 
-  // H13: clearAllData (Baby data clear)
+  // H13: clearAllBabyData
   const clearAllBabyData = useCallback(() => {
-    clearStorageData();
-    const fresh = getInitialState();
-    saveAppState(fresh);
-    setAppState(fresh);
-
-    if (user) {
-      saveStateToCloud(user.uid, fresh).catch(() => {});
-    }
-
-    if (onNavigateToBabyHome) {
-      onNavigateToBabyHome();
-    }
-  }, [user, onNavigateToBabyHome]);
+    if (!assertCanWrite()) return;
+    repository.clearAllData().then(() => {
+      setAppState(getInitialState());
+      if (onNavigateToBabyHome) {
+        onNavigateToBabyHome();
+      }
+    }).catch((err) => {
+      showToast(err.message || "Gagal menghapus data");
+    });
+  }, [assertCanWrite, onNavigateToBabyHome, repository, showToast]);
 
   return {
     appState,
     setAppState,
     activeProfile,
     paymentMode,
+    mode,
+    isAdmin,
+    isReadOnly,
     addProfile,
     selectProfile,
     updateProfile,

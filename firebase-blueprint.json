@@ -119,8 +119,99 @@
       },
       "required": ["id", "amount", "categoryId", "walletId", "frequency"]
     }
-  },
-  "firestore": {
+    "Family": {
+      "title": "Family",
+      "description": "Dokumen profil keluarga",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "schemaVersion": { "type": "number" }
+      },
+      "required": ["id", "name", "ownerId", "createdAt", "updatedAt", "schemaVersion"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Dokumen keanggotaan keluarga",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 80 },
+        "relation": { "type": "string" },
+        "role": { "type": "string" },
+        "isOwner": { "type": "boolean" },
+        "joinedAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "familyId", "displayName", "relation", "role", "isOwner", "joinedAt", "updatedAt"]
+    },
+    "Invite": {
+      "title": "Invite",
+      "description": "Undangan bergabung keluarga",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 128 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "familyName": { "type": "string", "maxLength": 80 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "relation": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "used": { "type": "boolean" }
+      },
+      "required": ["code", "familyId", "familyName", "createdBy", "relation", "role", "createdAt", "expiresAt", "used"]
+    },
+    "UserMembership": {
+      "title": "UserMembership",
+      "description": "Pointer keanggotaan pengguna",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "familyId", "createdAt"]
+    },
+    "FamilyFinanceTransaction": {
+      "title": "FamilyFinanceTransaction",
+      "description": "Transaksi keuangan keluarga",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "categoryId": { "type": "string", "maxLength": 64 },
+        "walletId": { "type": "string", "maxLength": 64 },
+        "date": { "type": "string" },
+        "note": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "familyId", "type", "amount", "categoryId", "date", "createdAt", "updatedAt", "createdBy", "updatedBy"]
+    },
+    "FamilyFinanceConfig": {
+      "title": "FamilyFinanceConfig",
+      "description": "Konfigurasi keuangan keluarga",
+      "type": "object",
+      "properties": {
+        "familyId": { "type": "string", "maxLength": 128 },
+        "schemaVersion": { "type": "number" },
+        "customCategories": { "type": "array" },
+        "budgets": { "type": "object" },
+        "includeVaccineCosts": { "type": "boolean" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["familyId", "schemaVersion", "customCategories", "budgets", "includeVaccineCosts", "updatedAt", "updatedBy"]
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "Dokumen profil akun pengguna"
@@ -145,14 +236,32 @@
       "schema": "RecurringRule",
       "description": "Dokumen aturan transaksi berulang"
     },
-    "/families/{familyId}/savingsGoals/{goalId}": {
-      "schema": "SavingsGoal",
-      "description": "Dokumen target tabungan keluarga"
+    "/families/{familyId}": {
+      "schema": "Family",
+      "description": "Dokumen profil keluarga"
     },
-    "/families/{familyId}/recurringRules/{ruleId}": {
-      "schema": "RecurringRule",
-      "description": "Dokumen aturan transaksi berulang keluarga"
-    }
+    "/families/{familyId}/members/{uid}": {
+      "schema": "Member",
+      "description": "Dokumen keanggotaan keluarga"
+    },
+    "/invites/{code}": {
+      "schema": "Invite",
+      "description": "Undangan bergabung keluarga"
+    },
+    "/users/{userId}/membership/current": {
+      "schema": "UserMembership",
+      "description": "Pointer keanggotaan keluarga pengguna"
+    },
+    "/families/{familyId}/financeTransactions/{txId}": {
+      "schema": "FamilyFinanceTransaction",
+      "description": "Transaksi keuangan keluarga"
+    },
+    "/families/{familyId}/financeConfig/main": {
+      "schema": "FamilyFinanceConfig",
+      "description": "Konfigurasi keuangan keluarga"
+    },
+
+
   }
 }
 

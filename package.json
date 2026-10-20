@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "test": "vitest run",
+    "test:rules": "npx firebase-tools emulators:exec --only firestore --project demo-growbang \"vitest run --config vitest.rules.config.ts\"",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

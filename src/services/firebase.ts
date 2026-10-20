@@ -16,10 +16,11 @@ import {
   getDoc,
   setDoc,
   getDocFromServer,
-  onSnapshot
+  onSnapshot,
+  SnapshotMetadata
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { AppState, isPaymentMode } from "../types";
+import { AppState, isPaymentMode, Profile, PaymentMode } from "../types";
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -205,13 +206,22 @@ export async function saveStateToCloud(userId: string, state: AppState): Promise
   const path = `users/${userId}/appData/current`;
   try {
     const docRef = doc(db, "users", userId, "appData", "current");
-    const payload: any = {
+    const payload: {
+      ownerId: string;
+      schemaVersion: number;
+      profiles: Profile[];
+      updatedAt: string;
+      activeProfileId?: string;
+      paymentMode?: PaymentMode;
+    } = {
       ownerId: userId,
-      schemaVersion: state.schemaVersion || 1,
-      activeProfileId: state.activeProfileId,
+      schemaVersion: Number(state.schemaVersion) || 1,
       profiles: state.profiles,
       updatedAt: new Date().toISOString()
     };
+    if (typeof state.activeProfileId === 'string' && state.activeProfileId.length > 0) {
+      payload.activeProfileId = state.activeProfileId;
+    }
     if (isPaymentMode(state.paymentMode)) {
       payload.paymentMode = state.paymentMode;
     }
@@ -253,7 +263,7 @@ export async function loadStateFromCloud(userId: string): Promise<AppState | nul
 
 export function subscribeToCloudState(
   userId: string,
-  onData: (state: AppState | null) => void,
+  onData: (state: AppState | null, metadata: SnapshotMetadata) => void,
   onError?: (err: Error) => void
 ) {
   const path = `users/${userId}/appData/current`;
@@ -262,6 +272,7 @@ export function subscribeToCloudState(
   return onSnapshot(
     docRef,
     (snapshot) => {
+      const metadata = snapshot.metadata;
       if (snapshot.exists()) {
         const data = snapshot.data();
         const paymentMode = isPaymentMode(data.paymentMode) ? data.paymentMode : undefined;
@@ -271,7 +282,7 @@ export function subscribeToCloudState(
             profiles: data.profiles,
             activeProfileId: data.activeProfileId || data.profiles[0].id,
             paymentMode
-          });
+          }, metadata);
           return;
         } else if (paymentMode) {
           onData({
@@ -279,11 +290,11 @@ export function subscribeToCloudState(
             profiles: [],
             activeProfileId: "",
             paymentMode
-          });
+          }, metadata);
           return;
         }
       }
-      onData(null);
+      onData(null, metadata);
     },
     (error) => {
       if (onError) {

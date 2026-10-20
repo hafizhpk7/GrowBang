@@ -176,53 +176,278 @@ service cloud.firestore {
         allow delete: if isOwner(userId) && isValidId(userId) && isValidId(ruleId);
       }
     }
-    // Family Management
-    match /families/{familyId} {
-      allow get: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-      // Only admins can create or manage family
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
-      
-      match /members/{uid} {
-        allow get: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-        allow create: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
-        allow delete: if isSignedIn() && (request.auth.uid == uid || get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin');
-      }
+    // ---------- Phase 2A: family helpers ----------
+    function familyPath(fid) {
+      return /databases/$(database)/documents/families/$(fid);
+    }
+    function memberPath(fid, uid) {
+      return /databases/$(database)/documents/families/$(fid)/members/$(uid);
+    }
+    function membershipPath(uid) {
+      return /databases/$(database)/documents/users/$(uid)/membership/current;
+    }
+    function invitePath(code) {
+      return /databases/$(database)/documents/invites/$(code);
+    }
+    function isFamilyMember(fid) {
+      return isSignedIn() && isValidId(fid) && exists(memberPath(fid, request.auth.uid));
+    }
+    function isFamilyAdmin(fid) {
+      return isFamilyMember(fid) && get(memberPath(fid, request.auth.uid)).data.role == 'admin';
+    }
+    function keyDiff() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
 
-      match /financeConfig/{docId} {
-        allow get: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && docId == 'main';
-        allow list: if false;
-        allow create, update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && docId == 'main';
-        allow delete: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin' && docId == 'main';
+    function isValidFamily(data, fid) {
+      return data.keys().hasAll(['id', 'name', 'ownerId', 'createdAt', 'updatedAt', 'schemaVersion'])
+        && data.keys().hasOnly(['id', 'name', 'ownerId', 'createdAt', 'updatedAt', 'schemaVersion'])
+        && data.id == fid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && data.schemaVersion is number;
+    }
+
+    function isValidMembership(data, uid) {
+      return data.keys().hasAll(['uid', 'familyId', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'familyId', 'createdAt'])
+        && data.uid == uid
+        && data.familyId is string && isValidId(data.familyId)
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidMemberDoc(data, fid, uid) {
+      return data.keys().hasAll(['uid', 'familyId', 'displayName', 'relation', 'role', 'isOwner', 'joinedAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'familyId', 'displayName', 'relation', 'role', 'isOwner', 'joinedAt', 'updatedAt', 'inviteCode'])
+        && data.uid == uid && data.familyId == fid
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 80
+        && data.relation in ['ayah', 'ibu', 'wali', 'kakek', 'nenek', 'saudara', 'pengasuh', 'lainnya']
+        && data.role in ['admin', 'member']
+        && data.isOwner is bool
+        && data.joinedAt is string && data.joinedAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && (!('inviteCode' in data) || (data.inviteCode is string && data.inviteCode.size() > 0 && data.inviteCode.size() <= 128));
+    }
+
+    function isValidInviteCreate(data, code) {
+      return data.keys().hasAll(['code', 'familyId', 'familyName', 'createdBy', 'relation', 'role', 'createdAt', 'expiresAt', 'used'])
+        && data.keys().hasOnly(['code', 'familyId', 'familyName', 'createdBy', 'relation', 'role', 'createdAt', 'expiresAt', 'used'])
+        && data.code == code
+        && data.familyId is string && isValidId(data.familyId)
+        && data.familyName is string && data.familyName.size() > 0 && data.familyName.size() <= 80
+        && data.createdBy == request.auth.uid
+        && data.relation in ['ayah', 'ibu', 'wali', 'kakek', 'nenek', 'saudara', 'pengasuh', 'lainnya']
+        && data.role in ['admin', 'member']
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.expiresAt is timestamp
+        && data.expiresAt > request.time
+        && data.expiresAt <= request.time + duration.value(3, 'd')
+        && data.used == false;
+    }
+
+    function isValidJoinInvite(fid, memberData) {
+      let code = memberData.inviteCode;
+      let invBefore = get(invitePath(code)).data;
+      let invAfter = getAfter(invitePath(code)).data;
+      return invBefore.familyId == fid
+        && invBefore.used == false
+        && invBefore.expiresAt > request.time
+        && invBefore.role == memberData.role
+        && invBefore.relation == memberData.relation
+        && invAfter.used == true
+        && invAfter.usedBy == memberData.uid;
+    }
+
+    function isFamilyCreationMember(fid, uid) {
+      return incoming().isOwner == true
+        && incoming().role == 'admin'
+        && !('inviteCode' in incoming())
+        && !exists(familyPath(fid))
+        && existsAfter(familyPath(fid))
+        && getAfter(familyPath(fid)).data.ownerId == uid;
+    }
+
+    function isJoiningMember(fid) {
+      return incoming().isOwner == false
+        && 'inviteCode' in incoming()
+        && isValidId(incoming().inviteCode)
+        && exists(familyPath(fid))
+        && isValidJoinInvite(fid, incoming());
+    }
+
+    function isSelfDisplayNameEdit(uid) {
+      return request.auth.uid == uid
+        && keyDiff().hasOnly(['displayName', 'updatedAt']);
+    }
+
+    function isAdminEditingOther(fid) {
+      return keyDiff().hasOnly(['role', 'relation', 'updatedAt'])
+        && existing().isOwner == false
+        && isFamilyAdmin(fid);
+    }
+
+    function isOwnershipFlip(fid, uid) {
+      let famBefore = get(familyPath(fid)).data;
+      let famAfter = getAfter(familyPath(fid)).data;
+      return keyDiff().hasOnly(['isOwner', 'role', 'updatedAt'])
+        && incoming().role == 'admin'
+        && incoming().isOwner != existing().isOwner
+        && famBefore.ownerId == request.auth.uid
+        && ((incoming().isOwner == true && famAfter.ownerId == uid)
+            || (incoming().isOwner == false && famAfter.ownerId != uid));
+    }
+
+    function isOwnerTransfer(fid) {
+      let newOwner = incoming().ownerId;
+      return newOwner != request.auth.uid
+        && exists(memberPath(fid, newOwner))
+        && getAfter(memberPath(fid, newOwner)).data.isOwner == true
+        && getAfter(memberPath(fid, newOwner)).data.role == 'admin'
+        && getAfter(memberPath(fid, request.auth.uid)).data.isOwner == false;
+    }
+
+    function isValidFamilyFinanceTx(data, fid) {
+      return data.keys().hasAll(['id', 'familyId', 'type', 'amount', 'categoryId', 'date', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+        && data.keys().hasOnly(['id', 'familyId', 'type', 'amount', 'categoryId', 'date', 'note', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'walletId'])
+        && data.familyId == fid
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.type in ['income', 'expense']
+        && data.amount is int && data.amount > 0 && data.amount <= 1000000000000
+        && data.categoryId is string && data.categoryId.size() > 0 && data.categoryId.size() <= 64
+        && (!('walletId' in data) || (data.walletId is string && data.walletId.size() > 0 && data.walletId.size() <= 64))
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!('note' in data) || (data.note is string && data.note.size() <= 500))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && data.createdBy is string && isValidId(data.createdBy)
+        && data.updatedBy == request.auth.uid;
+    }
+
+    function isValidFamilyFinanceConfig(data, fid) {
+      return data.keys().hasAll(['familyId', 'schemaVersion', 'customCategories', 'budgets', 'includeVaccineCosts', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['familyId', 'schemaVersion', 'customCategories', 'budgets', 'includeVaccineCosts', 'updatedAt', 'updatedBy', 'wallets'])
+        && data.familyId == fid
+        && data.schemaVersion is number
+        && data.customCategories is list && data.customCategories.size() <= 100
+        && data.budgets is map && data.budgets.size() <= 200
+        && data.includeVaccineCosts is bool
+        && (!('wallets' in data) || (data.wallets is map && data.wallets.size() <= 50))
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && data.updatedBy == request.auth.uid;
+    }
+
+    // ---------- inside `match /users/{userId}` ----------
+    match /membership/{docId} {
+      allow get: if isOwner(userId) && isValidId(userId) && docId == 'current';
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) && docId == 'current'
+        && isValidMembership(incoming(), userId)
+        && existsAfter(memberPath(incoming().familyId, userId))
+        && getAfter(memberPath(incoming().familyId, userId)).data.uid == userId;
+      allow update: if false;
+      allow delete: if isValidId(userId) && docId == 'current'
+        && (isOwner(userId) || isFamilyAdmin(resource.data.familyId))
+        && !existsAfter(memberPath(resource.data.familyId, userId));
+    }
+
+    // ---------- sibling of `match /users/{userId}` ----------
+    match /invites/{code} {
+      allow get: if isSignedIn() && isValidId(code);
+      allow list: if isSignedIn() && isFamilyAdmin(resource.data.familyId);
+      allow create: if isSignedIn() && isValidId(code)
+        && isValidInviteCreate(incoming(), code)
+        && isFamilyAdmin(incoming().familyId);
+      allow update: if isSignedIn() && isValidId(code)
+        && resource.data.used == false
+        && request.time < resource.data.expiresAt
+        && incoming().used == true
+        && incoming().usedBy == request.auth.uid
+        && incoming().usedAt is string && incoming().usedAt.size() <= 64
+        && keyDiff().hasOnly(['used', 'usedBy', 'usedAt'])
+        && !exists(memberPath(resource.data.familyId, request.auth.uid))
+        && existsAfter(memberPath(resource.data.familyId, request.auth.uid));
+      allow delete: if isSignedIn() && isFamilyAdmin(resource.data.familyId);
+    }
+
+    match /families/{familyId} {
+      allow get: if isFamilyMember(familyId);
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(familyId)
+        && isValidFamily(incoming(), familyId)
+        && incoming().ownerId == request.auth.uid
+        && existsAfter(memberPath(familyId, request.auth.uid))
+        && getAfter(memberPath(familyId, request.auth.uid)).data.isOwner == true
+        && getAfter(memberPath(familyId, request.auth.uid)).data.role == 'admin'
+        && existsAfter(membershipPath(request.auth.uid))
+        && getAfter(membershipPath(request.auth.uid)).data.familyId == familyId;
+      allow update: if isSignedIn() && isValidId(familyId)
+        && resource.data.ownerId == request.auth.uid
+        && isValidFamily(incoming(), familyId)
+        && incoming().createdAt == existing().createdAt
+        && (incoming().ownerId == existing().ownerId || isOwnerTransfer(familyId));
+      allow delete: if isSignedIn() && isValidId(familyId)
+        && resource.data.ownerId == request.auth.uid
+        && !existsAfter(memberPath(familyId, request.auth.uid));
+
+      match /members/{memberId} {
+        allow get: if isSignedIn() && isValidId(familyId) && isValidId(memberId)
+          && (request.auth.uid == memberId || isFamilyMember(familyId));
+        allow list: if isFamilyMember(familyId);
+        allow create: if isSignedIn() && isValidId(familyId) && isValidId(memberId)
+          && memberId == request.auth.uid
+          && isValidMemberDoc(incoming(), familyId, memberId)
+          && existsAfter(membershipPath(memberId))
+          && getAfter(membershipPath(memberId)).data.familyId == familyId
+          && (isFamilyCreationMember(familyId, memberId) || isJoiningMember(familyId));
+        allow update: if isSignedIn() && isValidId(familyId) && isValidId(memberId)
+          && isValidMemberDoc(incoming(), familyId, memberId)
+          && incoming().joinedAt == existing().joinedAt
+          && (isSelfDisplayNameEdit(memberId)
+              || isAdminEditingOther(familyId)
+              || isOwnershipFlip(familyId, memberId));
+        allow delete: if isSignedIn() && isValidId(familyId) && isValidId(memberId)
+          && !existsAfter(membershipPath(memberId))
+          && ((request.auth.uid == memberId && existing().isOwner == false)
+              || (existing().isOwner == false && isFamilyAdmin(familyId))
+              || (request.auth.uid == memberId && existing().isOwner == true
+                  && !existsAfter(familyPath(familyId))));
       }
 
       match /financeTransactions/{txId} {
-        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-        allow create, update, delete: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+        allow get, list: if isFamilyMember(familyId);
+        allow create: if isFamilyAdmin(familyId) && isValidId(txId)
+          && isValidFamilyFinanceTx(incoming(), familyId) && incoming().id == txId;
+        allow update: if isFamilyAdmin(familyId) && isValidId(txId)
+          && isValidFamilyFinanceTx(incoming(), familyId) && incoming().id == txId
+          && incoming().createdAt == existing().createdAt
+          && incoming().createdBy == existing().createdBy;
+        allow delete: if isFamilyAdmin(familyId) && isValidId(txId);
+      }
+
+      match /financeConfig/{docId} {
+        allow get: if isFamilyMember(familyId) && docId == 'main';
+        allow list: if false;
+        allow create, update: if isFamilyAdmin(familyId) && docId == 'main'
+          && isValidFamilyFinanceConfig(incoming(), familyId);
+        allow delete: if isFamilyAdmin(familyId) && docId == 'main';
       }
 
       match /savingsGoals/{goalId} {
-        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(goalId);
-        allow create, update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(goalId) && isValidSavingsGoal(incoming()) && incoming().id == goalId;
-        allow delete: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(goalId);
+        allow get, list: if isFamilyMember(familyId);
+        allow create, update: if isFamilyAdmin(familyId) && isValidId(goalId)
+          && isValidSavingsGoal(incoming()) && incoming().id == goalId;
+        allow delete: if isFamilyAdmin(familyId) && isValidId(goalId);
       }
 
       match /recurringRules/{ruleId} {
-        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(ruleId);
-        allow create, update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(ruleId) && isValidRecurringRule(incoming()) && incoming().id == ruleId;
-        allow delete: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) && isValidId(ruleId);
-      }
-
-      match /babies/{babyId} {
-        allow read: if isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-        allow write: if isSignedIn() && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+        allow get, list: if isFamilyMember(familyId);
+        allow create, update: if isFamilyAdmin(familyId) && isValidId(ruleId)
+          && isValidRecurringRule(incoming()) && incoming().id == ruleId;
+        allow delete: if isFamilyAdmin(familyId) && isValidId(ruleId);
       }
     }
 
-    match /invites/{code} {
-      allow get: if isSignedIn();
-      allow create: if isSignedIn() && get(/databases/$(database)/documents/families/$(incoming().fid)/members/$(request.auth.uid)).data.role == 'admin';
-      allow delete: if isSignedIn() && get(/databases/$(database)/documents/families/$(existing().fid)/members/$(request.auth.uid)).data.role == 'admin';
-    }
   }
 }
